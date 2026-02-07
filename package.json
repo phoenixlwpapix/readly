@@ -1,5 +1,5 @@
 {
-  "name": "readly-temp",
+  "name": "readly",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,19 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.22",
+    "@ai-sdk/react": "^3.0.77",
+    "@instantdb/react": "^0.22.126",
+    "ai": "^6.0.75",
+    "fast-xml-parser": "^5.3.4",
+    "lucide-react": "^0.563.0",
     "next": "16.1.6",
+    "next-themes": "^0.4.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "rss-parser": "^3.13.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
