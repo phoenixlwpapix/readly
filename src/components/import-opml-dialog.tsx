@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from 'react'
 import { FileUp, Upload, X, Loader2, AlertCircle } from 'lucide-react'
 import { id } from '@instantdb/react'
 import { fetchFeed, parseOPMLAction } from '@/app/actions'
-import { useFolders, feedActions, folderActions } from '@/lib/feed-store'
+import { useFolders, feedActions, folderActions, getExistingFeedUrls } from '@/lib/feed-store'
 import type { OPMLOutline } from '@/lib/types'
 
 interface ImportOPMLDialogProps {
@@ -97,7 +97,16 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
     if (toImport.length === 0) return
 
     setImporting(true)
-    setImportProgress({ current: 0, total: toImport.length })
+
+    const existingUrls = await getExistingFeedUrls()
+    const newOutlines = toImport.filter((o) => !existingUrls.has(o.xmlUrl))
+
+    if (newOutlines.length === 0) {
+      handleClose()
+      return
+    }
+
+    setImportProgress({ current: 0, total: newOutlines.length })
 
     const folderMap = new Map<string, string>()
 
@@ -105,9 +114,9 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
       folderMap.set(folder.name.toLowerCase(), folder.id)
     }
 
-    for (let i = 0; i < toImport.length; i++) {
-      const outline = toImport[i]
-      setImportProgress({ current: i + 1, total: toImport.length })
+    for (let i = 0; i < newOutlines.length; i++) {
+      const outline = newOutlines[i]
+      setImportProgress({ current: i + 1, total: newOutlines.length })
 
       try {
         const feed = await fetchFeed(outline.xmlUrl)
@@ -127,7 +136,6 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
 
         await feedActions.addFeed({ ...feed, folderId })
       } catch (err) {
-        // Log the error for debugging
         console.error(`[Import] Failed to import "${outline.title || outline.xmlUrl}":`, err)
       }
     }

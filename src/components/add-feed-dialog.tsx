@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Rss, X, Loader2 } from 'lucide-react'
 import { id } from '@instantdb/react'
 import { fetchFeed } from '@/app/actions'
-import { useFolders, feedActions, folderActions } from '@/lib/feed-store'
+import { useFolders, feedActions, folderActions, getExistingFeedUrls } from '@/lib/feed-store'
 
 interface AddFeedDialogProps {
   open: boolean
@@ -42,6 +42,13 @@ export function AddFeedDialog({ open, onClose }: AddFeedDialogProps) {
 
     setLoading(true)
     try {
+      const existingUrls = await getExistingFeedUrls()
+      if (existingUrls.has(trimmedUrl)) {
+        setError('This feed has already been added')
+        setLoading(false)
+        return
+      }
+
       const feed = await fetchFeed(trimmedUrl)
 
       let folderId: string | null = null

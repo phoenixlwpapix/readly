@@ -43,6 +43,12 @@ export function useFeedItems(feedId: string | null) {
     return { items: data?.feedItems ?? [], isLoading, error }
 }
 
+// Query helpers
+export async function getExistingFeedUrls(): Promise<Set<string>> {
+    const { data } = await db.queryOnce({ feeds: {} })
+    return new Set((data?.feeds ?? []).map((f) => f.url))
+}
+
 // Actions for mutating data
 export const feedActions = {
     async addFeed(feed: Feed & { folderId?: string | null }) {
