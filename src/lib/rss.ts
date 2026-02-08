@@ -38,7 +38,7 @@ interface AtomEntry {
 interface AtomFeed {
   title?: string | { '#text': string }
   link?: { '@_href'?: string } | Array<{ '@_href'?: string; '@_rel'?: string }>
-  subtitle?: string
+  subtitle?: string | { '#text': string }
   icon?: string
   logo?: string
   entry?: AtomEntry | AtomEntry[]
@@ -213,7 +213,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
       title: extractText(atomFeed.title) || 'Unknown Feed',
       url,
       link: getAtomLink(atomFeed.link),
-      description: atomFeed.subtitle ?? '',
+      description: extractText(atomFeed.subtitle) || '',
       imageUrl: resolveUrl(atomFeed.icon ?? atomFeed.logo, baseUrl),
       folderId: null,
       lastFetched: new Date().toISOString(),
