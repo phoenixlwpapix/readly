@@ -56,24 +56,45 @@ function extractText(value: unknown): string {
   return ''
 }
 
-function extractImageUrl(item: RSSItem | AtomEntry): string | undefined {
+function resolveUrl(relative: string | undefined, base: string): string | undefined {
+  if (!relative) return undefined
+  if (/^https?:\/\//i.test(relative)) return relative
+  try {
+    return new URL(relative, base).href
+  } catch {
+    return relative
+  }
+}
+
+function resolveContentUrls(html: string, baseUrl: string): string {
+  return html.replace(
+    /(<img\s[^>]*?src=["'])([^"']+)(["'])/gi,
+    (match, pre, src, post) => {
+      if (/^https?:\/\//i.test(src)) return match
+      const abs = resolveUrl(src, baseUrl)
+      return abs ? `${pre}${abs}${post}` : match
+    }
+  )
+}
+
+function extractImageUrl(item: RSSItem | AtomEntry, baseUrl: string): string | undefined {
   if ('enclosure' in item) {
     const rssItem = item as RSSItem
     if (rssItem.enclosure?.['@_type']?.startsWith('image/')) {
-      return rssItem.enclosure['@_url']
+      return resolveUrl(rssItem.enclosure['@_url'], baseUrl)
     }
   }
   const mediaContent = (item as Record<string, unknown>)['media:content'] as { '@_url'?: string } | undefined
-  if (mediaContent?.['@_url']) return mediaContent['@_url']
+  if (mediaContent?.['@_url']) return resolveUrl(mediaContent['@_url'], baseUrl)
   const mediaThumbnail = (item as Record<string, unknown>)['media:thumbnail'] as { '@_url'?: string } | undefined
-  if (mediaThumbnail?.['@_url']) return mediaThumbnail['@_url']
+  if (mediaThumbnail?.['@_url']) return resolveUrl(mediaThumbnail['@_url'], baseUrl)
 
   const content = ('content:encoded' in item)
     ? (item as RSSItem)['content:encoded']
     : extractText((item as AtomEntry).content)
   if (content) {
     const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/)
-    if (imgMatch) return imgMatch[1]
+    if (imgMatch) return resolveUrl(imgMatch[1], baseUrl)
   }
   return undefined
 }
@@ -92,10 +113,10 @@ function getAtomLink(link: AtomFeed['link'] | AtomEntry['link']): string {
   return link['@_href'] ?? ''
 }
 
-function parseRSSItems(items: RSSItem[], feedId: string): FeedItem[] {
+function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedItem[] {
   return items.map((item) => {
     const rawContent = item['content:encoded'] ?? item.description
-    const content = typeof rawContent === 'string' ? rawContent : ''
+    const content = typeof rawContent === 'string' ? resolveContentUrls(rawContent, baseUrl) : ''
     const guidText = typeof item.guid === 'object' ? item.guid?.['#text'] : item.guid
     return {
       id: generateId(),
@@ -106,17 +127,17 @@ function parseRSSItems(items: RSSItem[], feedId: string): FeedItem[] {
       contentSnippet: stripHtml(content).slice(0, 200),
       author: item.author ?? item['dc:creator'] ?? '',
       pubDate: item.pubDate ?? '',
-      imageUrl: extractImageUrl(item),
+      imageUrl: extractImageUrl(item, baseUrl),
       isRead: false,
       isStarred: false,
     } satisfies FeedItem
   })
 }
 
-function parseAtomEntries(entries: AtomEntry[], feedId: string): FeedItem[] {
+function parseAtomEntries(entries: AtomEntry[], feedId: string, baseUrl: string): FeedItem[] {
   return entries.map((entry) => {
     const rawContent = extractText(entry.content) || entry.summary
-    const content = typeof rawContent === 'string' ? rawContent : ''
+    const content = typeof rawContent === 'string' ? resolveContentUrls(rawContent, baseUrl) : ''
     return {
       id: generateId(),
       feedId,
@@ -126,7 +147,7 @@ function parseAtomEntries(entries: AtomEntry[], feedId: string): FeedItem[] {
       contentSnippet: stripHtml(content).slice(0, 200),
       author: entry.author?.name ?? '',
       pubDate: entry.updated ?? entry.published ?? '',
-      imageUrl: extractImageUrl(entry),
+      imageUrl: extractImageUrl(entry, baseUrl),
       isRead: false,
       isStarred: false,
     } satisfies FeedItem
@@ -157,6 +178,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
   // RSS 2.0
   if (parsed.rss?.channel) {
     const channel: RSSChannel = parsed.rss.channel
+    const baseUrl = channel.link || url
     const rawItems = channel.item
       ? Array.isArray(channel.item)
         ? channel.item
@@ -169,16 +191,17 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
       url,
       link: channel.link ?? '',
       description: channel.description ?? '',
-      imageUrl: channel.image?.url,
+      imageUrl: resolveUrl(channel.image?.url, baseUrl),
       folderId: null,
       lastFetched: new Date().toISOString(),
-      items: parseRSSItems(rawItems, feedId),
+      items: parseRSSItems(rawItems, feedId, baseUrl),
     }
   }
 
   // Atom
   if (parsed.feed) {
     const atomFeed: AtomFeed = parsed.feed
+    const baseUrl = getAtomLink(atomFeed.link) || url
     const rawEntries = atomFeed.entry
       ? Array.isArray(atomFeed.entry)
         ? atomFeed.entry
@@ -191,10 +214,10 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
       url,
       link: getAtomLink(atomFeed.link),
       description: atomFeed.subtitle ?? '',
-      imageUrl: atomFeed.icon ?? atomFeed.logo,
+      imageUrl: resolveUrl(atomFeed.icon ?? atomFeed.logo, baseUrl),
       folderId: null,
       lastFetched: new Date().toISOString(),
-      items: parseAtomEntries(rawEntries, feedId),
+      items: parseAtomEntries(rawEntries, feedId, baseUrl),
     }
   }
 
@@ -202,6 +225,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
   if (parsed['rdf:RDF']) {
     const rdf = parsed['rdf:RDF']
     const channel = rdf.channel ?? {}
+    const baseUrl = channel.link || url
     const rawItems = rdf.item
       ? Array.isArray(rdf.item)
         ? rdf.item
@@ -217,7 +241,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
       imageUrl: undefined,
       folderId: null,
       lastFetched: new Date().toISOString(),
-      items: parseRSSItems(rawItems, feedId),
+      items: parseRSSItems(rawItems, feedId, baseUrl),
     }
   }
 

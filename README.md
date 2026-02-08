@@ -2,28 +2,31 @@
 
 A modern, intelligent RSS reader built with Next.js and InstantDB.
 
-![Readly](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![InstantDB](https://img.shields.io/badge/InstantDB-Realtime-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?logo=tailwindcss)
 
 ## Features
 
-- 📰 **RSS Feed Management** - Add, organize, and manage your RSS feeds
-- 📁 **Folder Organization** - Group feeds into folders for better organization
-- ⭐ **Starred Articles** - Save articles for later reading
-- 🔄 **Real-time Sync** - Data synced via InstantDB cloud database
-- 🌙 **Dark Mode** - Beautiful light and dark themes
-- 📥 **OPML Import** - Import feeds from other RSS readers
-- 🤖 **AI Summarization** - Get AI-powered summaries using Google Gemini
+- **RSS Feed Management** - Add, organize, and manage RSS feeds with support for RSS 2.0, Atom, and RDF/RSS 1.0
+- **Folder Organization** - Group feeds into folders with custom sorting options
+- **Starred Articles** - Save articles for later reading
+- **Real-time Sync** - Data synced via InstantDB cloud database
+- **Dark / Light Mode** - Theme toggle with CSS custom properties
+- **OPML Import** - Import feeds from other RSS readers
+- **AI Summarization** - AI-powered article summaries using Google Gemini 2.0 Flash
+- **Mobile Responsive** - Slide-over sidebar drawer, single-panel navigation on mobile (<1024px), fully usable on phones and tablets
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
+- **Framework**: Next.js 16 (App Router, Turbopack)
+- **Language**: TypeScript + React 19
 - **Database**: [InstantDB](https://instantdb.com) - Real-time cloud database
 - **Styling**: Tailwind CSS v4
-- **Font**: Lato (Google Fonts)
-- **AI**: Google Gemini (via Vercel AI SDK)
-- **Language**: TypeScript
+- **AI**: Google Gemini 2.0 Flash via AI SDK v6 (`@ai-sdk/google`)
+- **RSS Parsing**: Custom parser with `fast-xml-parser`
+- **State**: Zustand (UI state, persisted font size preference)
 
 ## Getting Started
 
@@ -37,7 +40,7 @@ A modern, intelligent RSS reader built with Next.js and InstantDB.
 1. Clone the repository:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/phoenixlwpapix/readly.git
 cd readly
 ```
 
@@ -55,6 +58,9 @@ Create a `.env.local` file:
 # Google AI API Key (for AI summarization)
 # Get your key at: https://aistudio.google.com/apikey
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+
+# InstantDB App ID
+NEXT_PUBLIC_INSTANTDB_APP_ID=your_instantdb_app_id_here
 ```
 
 4. Run the development server:
@@ -72,39 +78,36 @@ src/
 ├── app/                    # Next.js App Router
 │   ├── api/               # API routes
 │   │   └── summarize/     # AI summarization endpoint
-│   ├── actions.ts         # Server actions
+│   ├── actions.ts         # Server actions (fetch feed, parse OPML)
+│   ├── globals.css        # Theme variables & article typography
 │   └── page.tsx           # Main page
-├── components/            # React components
-│   ├── sidebar.tsx        # Feed navigation
-│   ├── article-list.tsx   # Article list
-│   ├── article-reader.tsx # Article viewer
-│   └── ...
-├── lib/                   # Utilities and stores
-│   ├── instantdb.ts       # InstantDB client
-│   ├── feed-store.ts      # Data hooks & actions
-│   ├── ui-store.ts        # UI state management
-│   └── types.ts           # TypeScript types
-├── hooks/                 # Custom React hooks
-└── instant.schema.ts      # InstantDB schema
+├── components/            # React components (all Client Components)
+│   ├── app-shell.tsx      # 3-panel responsive layout
+│   ├── sidebar.tsx        # Feed tree, folders, nav filters, theme toggle
+│   ├── article-list.tsx   # Filtered/sorted article cards
+│   ├── article-reader.tsx # Article content with AI summarize
+│   ├── add-feed-dialog.tsx
+│   ├── import-opml-dialog.tsx
+│   ├── confirm-modal.tsx
+│   └── providers.tsx      # ThemeProvider wrapper
+├── hooks/
+│   └── use-ai-summary.ts  # Streaming AI summary hook
+├── lib/
+│   ├── instantdb.ts       # InstantDB client init
+│   ├── feed-store.ts      # Data hooks & mutation actions
+│   ├── ui-store.ts        # UI state (selection, filters, sidebar)
+│   ├── rss.ts             # RSS/Atom/RDF parser
+│   ├── opml.ts            # OPML parser
+│   ├── types.ts           # TypeScript types
+│   └── utils.ts           # Utilities (cn, formatRelativeDate)
+└── instant.schema.ts      # InstantDB schema definition
 ```
-
-## InstantDB Configuration
-
-The app uses InstantDB for real-time data storage. The schema includes:
-
-- **feeds** - RSS feed sources
-- **folders** - Feed organization
-- **feedItems** - Individual articles
-
-Schema and permissions are defined in:
-- `src/instant.schema.ts` - Data schema
-- `instant.perms.ts` - Access permissions (public read/write)
 
 ## Scripts
 
 ```bash
-pnpm dev          # Start development server
-pnpm build        # Build for production
+pnpm dev          # Start development server (Turbopack)
+pnpm build        # Production build + type checking
 pnpm start        # Start production server
 pnpm lint         # Run ESLint
 ```
