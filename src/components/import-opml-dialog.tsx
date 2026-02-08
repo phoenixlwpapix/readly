@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { FileUp, Upload, X, Loader2, AlertCircle } from 'lucide-react'
 import { id } from '@instantdb/react'
 import { fetchFeed, parseOPMLAction } from '@/app/actions'
@@ -145,7 +146,7 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
@@ -435,6 +436,7 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

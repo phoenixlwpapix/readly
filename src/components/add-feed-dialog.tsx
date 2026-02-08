@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Rss, X, Loader2 } from 'lucide-react'
 import { id } from '@instantdb/react'
 import { fetchFeed } from '@/app/actions'
@@ -18,8 +19,6 @@ export function AddFeedDialog({ open, onClose }: AddFeedDialogProps) {
   const [newFolderName, setNewFolderName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  if (!open) return null
 
   const handleClose = () => {
     setUrl('')
@@ -71,7 +70,9 @@ export function AddFeedDialog({ open, onClose }: AddFeedDialogProps) {
     }
   }
 
-  return (
+  if (!open) return null
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
@@ -252,6 +253,7 @@ export function AddFeedDialog({ open, onClose }: AddFeedDialogProps) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
