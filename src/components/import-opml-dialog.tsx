@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { FileUp, Upload, X, Loader2, AlertCircle } from 'lucide-react'
+import { FileUp, Upload, X, Loader2, AlertCircle, Check } from 'lucide-react'
 import { id } from '@instantdb/react'
 import { fetchFeed, parseOPMLAction } from '@/app/actions'
-import { useFolders, feedActions, folderActions, getExistingFeedUrls } from '@/lib/feed-store'
+import { useFolders, useFeeds, feedActions, folderActions } from '@/lib/feed-store'
 import type { OPMLOutline } from '@/lib/types'
 
 interface ImportOPMLDialogProps {
@@ -15,14 +15,21 @@ interface ImportOPMLDialogProps {
 
 export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
   const { folders } = useFolders()
+  const { feeds } = useFeeds()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [outlines, setOutlines] = useState<OPMLOutline[]>([])
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  const [existingUrls, setExistingUrls] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
   const [dragOver, setDragOver] = useState(false)
+
+  // Update existing URLs when feeds change
+  useEffect(() => {
+    setExistingUrls(new Set(feeds.map((f) => f.url)))
+  }, [feeds])
 
   const handleClose = () => {
     setOutlines([])
@@ -34,6 +41,14 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
     setDragOver(false)
     onClose()
   }
+
+  // Count of new (non-existing) feeds among selected
+  const newSelectedCount = Array.from(selectedIndices).filter(
+    (i) => !existingUrls.has(outlines[i]?.xmlUrl)
+  ).length
+
+  // Count of existing feeds in the parsed outlines
+  const existingCount = outlines.filter((o) => existingUrls.has(o.xmlUrl)).length
 
   const processFile = async (file: File) => {
     if (!file.name.endsWith('.opml') && !file.name.endsWith('.xml')) {
@@ -50,8 +65,12 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
         setError('No feeds found in the OPML file')
       } else {
         setOutlines(parsed)
-        // Select all by default
-        setSelectedIndices(new Set(parsed.map((_, i) => i)))
+        // Select only non-existing feeds by default
+        const nonExisting = parsed
+          .map((o, i) => ({ o, i }))
+          .filter(({ o }) => !existingUrls.has(o.xmlUrl))
+          .map(({ i }) => i)
+        setSelectedIndices(new Set(nonExisting))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse OPML file')
@@ -76,14 +95,26 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
   }
 
   const handleToggleAll = () => {
-    if (selectedIndices.size === outlines.length) {
-      setSelectedIndices(new Set())
+    // Only toggle non-existing feeds
+    const nonExistingIndices = outlines
+      .map((o, i) => ({ o, i }))
+      .filter(({ o }) => !existingUrls.has(o.xmlUrl))
+      .map(({ i }) => i)
+    const allNonExistingSelected = nonExistingIndices.every((i) => selectedIndices.has(i))
+    if (allNonExistingSelected) {
+      // Deselect all non-existing
+      const next = new Set(selectedIndices)
+      nonExistingIndices.forEach((i) => next.delete(i))
+      setSelectedIndices(next)
     } else {
-      setSelectedIndices(new Set(outlines.map((_, i) => i)))
+      // Select all non-existing
+      setSelectedIndices(new Set([...selectedIndices, ...nonExistingIndices]))
     }
   }
 
   const handleToggle = (index: number) => {
+    // Don't allow selecting existing feeds
+    if (existingUrls.has(outlines[index]?.xmlUrl)) return
     const next = new Set(selectedIndices)
     if (next.has(index)) {
       next.delete(index)
@@ -94,20 +125,18 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
   }
 
   const handleImport = async () => {
-    const toImport = outlines.filter((_, i) => selectedIndices.has(i))
-    if (toImport.length === 0) return
-
-    setImporting(true)
-
-    const existingUrls = await getExistingFeedUrls()
-    const newOutlines = toImport.filter((o) => !existingUrls.has(o.xmlUrl))
-
-    if (newOutlines.length === 0) {
+    // Only import non-existing selected feeds
+    const toImport = outlines.filter(
+      (o, i) => selectedIndices.has(i) && !existingUrls.has(o.xmlUrl)
+    )
+    if (toImport.length === 0) {
       handleClose()
       return
     }
 
-    setImportProgress({ current: 0, total: newOutlines.length })
+    setImporting(true)
+
+    setImportProgress({ current: 0, total: toImport.length })
 
     const folderMap = new Map<string, string>()
 
@@ -115,9 +144,9 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
       folderMap.set(folder.name.toLowerCase(), folder.id)
     }
 
-    for (let i = 0; i < newOutlines.length; i++) {
-      const outline = newOutlines[i]
-      setImportProgress({ current: i + 1, total: newOutlines.length })
+    for (let i = 0; i < toImport.length; i++) {
+      const outline = toImport[i]
+      setImportProgress({ current: i + 1, total: toImport.length })
 
       try {
         const feed = await fetchFeed(outline.xmlUrl)
@@ -315,7 +344,13 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
               className="mb-3 text-sm font-medium"
               style={{ color: 'var(--color-text-secondary)' }}
             >
-              Found {outlines.length} feed{outlines.length !== 1 ? 's' : ''} · {selectedIndices.size} selected
+              Found {outlines.length} feed{outlines.length !== 1 ? 's' : ''}
+              {existingCount > 0 && (
+                <span style={{ color: 'var(--color-text-tertiary)' }}>
+                  {' '}· {existingCount} already subscribed
+                </span>
+              )}
+              {' '}· {newSelectedCount} new selected
             </p>
             <div
               className="max-h-64 overflow-y-auto rounded-lg border"
@@ -332,7 +367,10 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
                     <th className="w-10 px-3 py-2">
                       <input
                         type="checkbox"
-                        checked={selectedIndices.size === outlines.length}
+                        checked={
+                          outlines.filter((o) => !existingUrls.has(o.xmlUrl)).length > 0 &&
+                          outlines.every((o, i) => existingUrls.has(o.xmlUrl) || selectedIndices.has(i))
+                        }
                         onChange={handleToggleAll}
                         className="h-4 w-4 cursor-pointer rounded"
                         style={{ accentColor: 'var(--color-accent)' }}
@@ -350,47 +388,83 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
                     >
                       Folder
                     </th>
+                    <th
+                      className="w-24 px-3 py-2 text-right font-medium"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                    >
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {outlines.map((outline, i) => (
-                    <tr
-                      key={i}
-                      className="cursor-pointer transition-colors"
-                      style={{
-                        borderBottom:
-                          i < outlines.length - 1
-                            ? '1px solid var(--color-border)'
-                            : 'none',
-                        backgroundColor: selectedIndices.has(i) ? 'var(--color-accent-light)' : 'transparent',
-                      }}
-                      onClick={() => handleToggle(i)}
-                    >
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedIndices.has(i)}
-                          onChange={() => handleToggle(i)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-4 w-4 cursor-pointer rounded"
-                          style={{ accentColor: 'var(--color-accent)' }}
-                        />
-                      </td>
-                      <td
-                        className="max-w-[200px] truncate px-3 py-2"
-                        style={{ color: 'var(--color-text-primary)' }}
-                        title={outline.xmlUrl}
+                  {outlines.map((outline, i) => {
+                    const isExisting = existingUrls.has(outline.xmlUrl)
+                    return (
+                      <tr
+                        key={i}
+                        className={`transition-colors ${isExisting ? 'cursor-default' : 'cursor-pointer'}`}
+                        style={{
+                          borderBottom:
+                            i < outlines.length - 1
+                              ? '1px solid var(--color-border)'
+                              : 'none',
+                          backgroundColor: isExisting
+                            ? 'var(--color-bg-secondary)'
+                            : selectedIndices.has(i)
+                              ? 'var(--color-accent-light)'
+                              : 'transparent',
+                          opacity: isExisting ? 0.7 : 1,
+                        }}
+                        onClick={() => handleToggle(i)}
                       >
-                        {outline.title || outline.xmlUrl}
-                      </td>
-                      <td
-                        className="px-3 py-2"
-                        style={{ color: 'var(--color-text-tertiary)' }}
-                      >
-                        {outline.folder || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIndices.has(i)}
+                            onChange={() => handleToggle(i)}
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={isExisting}
+                            className="h-4 w-4 rounded disabled:cursor-not-allowed disabled:opacity-50"
+                            style={{ accentColor: 'var(--color-accent)', cursor: isExisting ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                        <td
+                          className="max-w-[180px] truncate px-3 py-2"
+                          style={{ color: isExisting ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)' }}
+                          title={outline.xmlUrl}
+                        >
+                          {outline.title || outline.xmlUrl}
+                        </td>
+                        <td
+                          className="px-3 py-2"
+                          style={{ color: 'var(--color-text-tertiary)' }}
+                        >
+                          {outline.folder || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {isExisting ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                              style={{
+                                backgroundColor: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
+                                color: 'var(--color-success)',
+                              }}
+                            >
+                              <Check size={12} />
+                              Subscribed
+                            </span>
+                          ) : (
+                            <span
+                              className="text-xs"
+                              style={{ color: 'var(--color-text-tertiary)' }}
+                            >
+                              New
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -418,11 +492,11 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
               <button
                 type="button"
                 onClick={handleImport}
-                disabled={selectedIndices.size === 0}
+                disabled={newSelectedCount === 0}
                 className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all duration-200 disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-accent)' }}
                 onMouseEnter={(e) => {
-                  if (selectedIndices.size > 0) {
+                  if (newSelectedCount > 0) {
                     e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'
                   }
                 }}
@@ -430,7 +504,7 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
                   e.currentTarget.style.backgroundColor = 'var(--color-accent)'
                 }}
               >
-                Import {selectedIndices.size} Feed{selectedIndices.size !== 1 ? 's' : ''}
+                Import {newSelectedCount} Feed{newSelectedCount !== 1 ? 's' : ''}
               </button>
             </div>
           </>

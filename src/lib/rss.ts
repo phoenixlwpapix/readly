@@ -89,11 +89,29 @@ function extractImageUrl(item: RSSItem | AtomEntry, baseUrl: string): string | u
   const mediaThumbnail = (item as Record<string, unknown>)['media:thumbnail'] as { '@_url'?: string } | undefined
   if (mediaThumbnail?.['@_url']) return resolveUrl(mediaThumbnail['@_url'], baseUrl)
 
-  const content = ('content:encoded' in item)
-    ? (item as RSSItem)['content:encoded']
-    : extractText((item as AtomEntry).content)
-  if (content) {
-    const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/)
+  // Extract content for image search, handle CDATA format
+  let contentStr = ''
+  if ('content:encoded' in item) {
+    const encoded = (item as RSSItem)['content:encoded']
+    if (typeof encoded === 'string') {
+      contentStr = encoded
+    } else if (encoded && typeof encoded === 'object' && '__cdata' in (encoded as Record<string, unknown>)) {
+      contentStr = String((encoded as Record<string, unknown>).__cdata)
+    }
+  }
+  if (!contentStr && 'description' in item) {
+    const desc = (item as RSSItem).description
+    if (typeof desc === 'string') {
+      contentStr = desc
+    } else if (desc && typeof desc === 'object' && '__cdata' in (desc as Record<string, unknown>)) {
+      contentStr = String((desc as Record<string, unknown>).__cdata)
+    }
+  }
+  if (!contentStr) {
+    contentStr = extractText((item as AtomEntry).content)
+  }
+  if (contentStr) {
+    const imgMatch = contentStr.match(/<img[^>]+src=["']([^"']+)["']/)
     if (imgMatch) return resolveUrl(imgMatch[1], baseUrl)
   }
   return undefined
@@ -113,20 +131,39 @@ function getAtomLink(link: AtomFeed['link'] | AtomEntry['link']): string {
   return link['@_href'] ?? ''
 }
 
+function extractCData(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    // Handle CDATA wrapped content: { __cdata: 'content' }
+    if ('__cdata' in obj && typeof obj.__cdata === 'string') {
+      return obj.__cdata
+    }
+    // Handle #text
+    if ('#text' in obj && typeof obj['#text'] === 'string') {
+      return obj['#text']
+    }
+  }
+  return ''
+}
+
 function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedItem[] {
   return items.map((item) => {
-    const rawContent = item['content:encoded'] ?? item.description
-    const content = typeof rawContent === 'string' ? resolveContentUrls(rawContent, baseUrl) : ''
+    // Handle CDATA wrapped content
+    const rawContentEncoded = extractCData(item['content:encoded'])
+    const rawDescription = extractCData(item.description)
+    const rawContent = rawContentEncoded || rawDescription
+    const content = rawContent ? resolveContentUrls(rawContent, baseUrl) : ''
     const guidText = typeof item.guid === 'object' ? item.guid?.['#text'] : item.guid
     return {
       id: generateId(),
       feedId,
-      title: item.title ?? 'Untitled',
-      link: item.link ?? '',
+      title: extractCData(item.title) || 'Untitled',
+      link: typeof item.link === 'string' ? item.link : '',
       content,
       contentSnippet: stripHtml(content).slice(0, 200),
-      author: item.author ?? item['dc:creator'] ?? '',
-      pubDate: item.pubDate ?? '',
+      author: extractCData(item.author) || extractCData(item['dc:creator']) || '',
+      pubDate: extractCData(item.pubDate) || '',
       imageUrl: extractImageUrl(item, baseUrl),
       isRead: false,
       isStarred: false,
@@ -170,6 +207,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
+    cdataPropName: '__cdata',
   })
   const parsed = parser.parse(xml)
 

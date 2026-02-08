@@ -25,6 +25,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  ExternalLink,
 } from 'lucide-react'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, useFolders, feedActions, folderActions } from '@/lib/feed-store'
@@ -310,6 +311,7 @@ export function Sidebar() {
                         key={feed.id}
                         feedId={feed.id}
                         title={feed.title}
+                        feedUrl={feed.url}
                         unreadCount={getUnreadCount(feed.id)}
                         isSelected={selectedFeedId === feed.id}
                         folders={folders}
@@ -342,6 +344,7 @@ export function Sidebar() {
                     key={feed.id}
                     feedId={feed.id}
                     title={feed.title}
+                    feedUrl={feed.url}
                     unreadCount={getUnreadCount(feed.id)}
                     isSelected={selectedFeedId === feed.id}
                     folders={folders}
@@ -697,6 +700,7 @@ function FolderItem({
 function FeedItem({
   feedId,
   title,
+  feedUrl,
   unreadCount,
   isSelected,
   folders,
@@ -705,6 +709,7 @@ function FeedItem({
 }: {
   feedId: string
   title: string
+  feedUrl: string
   unreadCount: number
   isSelected: boolean
   folders: FolderType[]
@@ -894,6 +899,14 @@ function FeedItem({
                   setMenuView('move')
                 }}
                 hasSubmenu
+              />
+              <DropdownItem
+                icon={<ExternalLink size={14} />}
+                label="View RSS Source"
+                onClick={() => {
+                  setMenuOpen(false)
+                  window.open(feedUrl, '_blank', 'noopener')
+                }}
               />
               <div
                 className="my-1 h-px"
