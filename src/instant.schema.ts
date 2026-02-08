@@ -9,6 +9,7 @@ const _schema = i.schema({
             description: i.string(),
             imageUrl: i.string().optional(),
             lastFetched: i.string().optional(),
+            isFavorite: i.boolean().optional(),
             createdAt: i.number().indexed(),
         }),
         folders: i.entity({

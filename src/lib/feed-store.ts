@@ -211,6 +211,10 @@ export const feedActions = {
             }
         }
     },
+
+    async toggleFavorite(feedId: string, currentValue: boolean) {
+        await db.transact([db.tx.feeds[feedId].update({ isFavorite: !currentValue })])
+    },
 }
 
 export const folderActions = {

@@ -84,6 +84,7 @@ export function Sidebar() {
   )
 
   const uncategorizedFeeds = feeds.filter((f) => !f.folder)
+  const favoriteFeeds = feeds.filter((f) => f.isFavorite)
 
   const getFeedsInFolder = (folderId: string) =>
     feeds.filter((f) => f.folder?.id === folderId)
@@ -134,12 +135,16 @@ export function Sidebar() {
         className={`flex items-center border-b px-4 py-4 ${sidebarCollapsed ? 'justify-center lg:px-2' : 'gap-2.5'}`}
         style={{ borderColor: 'var(--color-border)' }}
       >
-        <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+        <button
+          onClick={sidebarCollapsed ? toggleSidebarCollapsed : undefined}
+          disabled={!sidebarCollapsed}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200 ${sidebarCollapsed ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+            }`}
           style={{ backgroundColor: 'var(--color-accent)' }}
+          title={sidebarCollapsed ? 'Expand sidebar' : undefined}
         >
           <Rss size={16} color="white" />
-        </div>
+        </button>
         {!sidebarCollapsed && (
           <>
             <span
@@ -165,21 +170,23 @@ export function Sidebar() {
         >
           <X size={20} />
         </button>
-        {/* Desktop collapse button */}
-        <button
-          onClick={toggleSidebarCollapsed}
-          className="hidden rounded-lg p-1.5 transition-colors lg:block"
-          style={{ color: 'var(--color-text-secondary)' }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)')
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = 'transparent')
-          }
-          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
-        </button>
+        {/* Desktop collapse button - only show when expanded */}
+        {!sidebarCollapsed && (
+          <button
+            onClick={toggleSidebarCollapsed}
+            className="hidden rounded-lg p-1.5 transition-colors lg:block"
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)')
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = 'transparent')
+            }
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose size={18} />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -287,6 +294,39 @@ export function Sidebar() {
       {/* Feeds - hidden when collapsed */}
       {!sidebarCollapsed && (
         <div className="flex-1 overflow-y-auto px-2">
+          {/* Favorites */}
+          {favoriteFeeds.length > 0 && (
+            <div className="mb-1">
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--color-star)' }}
+              >
+                <Star size={12} />
+                Favorites
+              </div>
+              <div className="space-y-0.5">
+                {favoriteFeeds.map((feed) => (
+                  <FeedItem
+                    key={`fav-${feed.id}`}
+                    feedId={feed.id}
+                    title={feed.title}
+                    feedUrl={feed.url}
+                    isFavorite={feed.isFavorite ?? false}
+                    unreadCount={getUnreadCount(feed.id)}
+                    isSelected={selectedFeedId === feed.id}
+                    folders={folders}
+                    onSelect={() => {
+                      setSelectedFeed(feed.id)
+                      setFilterMode('all')
+                      setSidebarOpen(false)
+                    }}
+                    onRemove={() => handleRemoveFeed(feed.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Folders */}
           {folders.map((folder, index) => {
             const folderFeeds = sortFolderFeeds(
@@ -312,6 +352,7 @@ export function Sidebar() {
                         feedId={feed.id}
                         title={feed.title}
                         feedUrl={feed.url}
+                        isFavorite={feed.isFavorite ?? false}
                         unreadCount={getUnreadCount(feed.id)}
                         isSelected={selectedFeedId === feed.id}
                         folders={folders}
@@ -345,6 +386,7 @@ export function Sidebar() {
                     feedId={feed.id}
                     title={feed.title}
                     feedUrl={feed.url}
+                    isFavorite={feed.isFavorite ?? false}
                     unreadCount={getUnreadCount(feed.id)}
                     isSelected={selectedFeedId === feed.id}
                     folders={folders}
@@ -701,6 +743,7 @@ function FeedItem({
   feedId,
   title,
   feedUrl,
+  isFavorite,
   unreadCount,
   isSelected,
   folders,
@@ -710,6 +753,7 @@ function FeedItem({
   feedId: string
   title: string
   feedUrl: string
+  isFavorite: boolean
   unreadCount: number
   isSelected: boolean
   folders: FolderType[]
@@ -906,6 +950,14 @@ function FeedItem({
                 onClick={() => {
                   setMenuOpen(false)
                   window.open(feedUrl, '_blank', 'noopener')
+                }}
+              />
+              <DropdownItem
+                icon={<Star size={14} />}
+                label={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                onClick={async () => {
+                  setMenuOpen(false)
+                  await feedActions.toggleFavorite(feedId, isFavorite)
                 }}
               />
               <div
