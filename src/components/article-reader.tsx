@@ -3,7 +3,6 @@
 import { useMemo, useEffect } from 'react'
 import {
   ArrowLeft,
-  BookOpen,
   Star,
   Eye,
   EyeOff,
@@ -17,6 +16,7 @@ import { useFeeds, itemActions } from '@/lib/feed-store'
 import { useAiSummary } from '@/hooks/use-ai-summary'
 import { formatRelativeDate } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
+import { WelcomeScreen } from '@/components/welcome-screen'
 
 export function ArticleReader() {
   const { feeds } = useFeeds()
@@ -97,24 +97,7 @@ export function ArticleReader() {
   }
 
   if (!article) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <BookOpen
-          size={64}
-          strokeWidth={1}
-          style={{ color: 'var(--color-text-tertiary)' }}
-        />
-        <p
-          className="text-lg font-semibold"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          Select an article to read
-        </p>
-        <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-          Choose an article from the list to start reading
-        </p>
-      </div>
-    )
+    return <WelcomeScreen />
   }
 
   return (
