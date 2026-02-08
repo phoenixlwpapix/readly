@@ -1,28 +1,47 @@
 'use client'
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-// UI 状态 store（不持久化到 InstantDB）
+export type FontSize = 'small' | 'medium' | 'large'
+
+// UI 状态 store
 interface UIState {
     selectedFeedId: string | null
     selectedArticleId: string | null
     filterMode: 'all' | 'unread' | 'starred'
     sortOrder: 'newest' | 'oldest'
+    fontSize: FontSize
+    sidebarOpen: boolean
 
     setSelectedFeed: (feedId: string | null) => void
     setSelectedArticle: (articleId: string | null) => void
     setFilterMode: (mode: 'all' | 'unread' | 'starred') => void
     setSortOrder: (order: 'newest' | 'oldest') => void
+    setFontSize: (size: FontSize) => void
+    setSidebarOpen: (open: boolean) => void
 }
 
-export const useUIStore = create<UIState>()((set) => ({
-    selectedFeedId: null,
-    selectedArticleId: null,
-    filterMode: 'all',
-    sortOrder: 'newest',
+export const useUIStore = create<UIState>()(
+    persist(
+        (set) => ({
+            selectedFeedId: null,
+            selectedArticleId: null,
+            filterMode: 'all',
+            sortOrder: 'newest',
+            fontSize: 'medium',
+            sidebarOpen: false,
 
-    setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedArticleId: null }),
-    setSelectedArticle: (articleId) => set({ selectedArticleId: articleId }),
-    setFilterMode: (mode) => set({ filterMode: mode }),
-    setSortOrder: (order) => set({ sortOrder: order }),
-}))
+            setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedArticleId: null }),
+            setSelectedArticle: (articleId) => set({ selectedArticleId: articleId }),
+            setFilterMode: (mode) => set({ filterMode: mode }),
+            setSortOrder: (order) => set({ sortOrder: order }),
+            setFontSize: (size) => set({ fontSize: size }),
+            setSidebarOpen: (open) => set({ sidebarOpen: open }),
+        }),
+        {
+            name: 'readly-ui-settings',
+            partialize: (state) => ({ fontSize: state.fontSize }),
+        }
+    )
+)

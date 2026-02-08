@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Lato } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -11,6 +11,11 @@ const lato = Lato({
 export const metadata: Metadata = {
   title: "Readly",
   description: "Your intelligent RSS reader",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

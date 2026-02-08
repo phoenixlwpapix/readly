@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect } from 'react'
 import {
+  ArrowLeft,
   BookOpen,
   Star,
   Eye,
@@ -9,8 +10,9 @@ import {
   ExternalLink,
   Sparkles,
   RotateCcw,
+  Type,
 } from 'lucide-react'
-import { useUIStore } from '@/lib/ui-store'
+import { useUIStore, type FontSize } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
 import { useAiSummary } from '@/hooks/use-ai-summary'
 import { formatRelativeDate } from '@/lib/utils'
@@ -19,6 +21,9 @@ import ReactMarkdown from 'react-markdown'
 export function ArticleReader() {
   const { feeds } = useFeeds()
   const selectedArticleId = useUIStore((s) => s.selectedArticleId)
+  const setSelectedArticle = useUIStore((s) => s.setSelectedArticle)
+  const fontSize = useUIStore((s) => s.fontSize)
+  const setFontSize = useUIStore((s) => s.setFontSize)
 
   const { summary: newSummary, isLoading: isSummarizing, error: summaryError, summarize, stop, reset } = useAiSummary()
 
@@ -43,6 +48,20 @@ export function ArticleReader() {
 
   // Use saved summary from DB, or newly generated one
   const displaySummary = article?.summary || newSummary
+
+  // Process article content to add referrerPolicy to images
+  // This fixes images blocked by external servers checking Referer header
+  const processedContent = useMemo(() => {
+    if (!article?.content) return ''
+    return article.content.replace(
+      /<img\s+([^>]*?)\/?>/gi,
+      (match, attributes) => {
+        // Skip if already has referrerpolicy
+        if (/referrerpolicy/i.test(attributes)) return match
+        return `<img ${attributes} referrerpolicy="no-referrer" />`
+      }
+    )
+  }, [article?.content])
 
   // Save summary to DB when generation completes
   const handleSummarize = async () => {
@@ -100,9 +119,20 @@ export function ArticleReader() {
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div
-        className="flex shrink-0 items-center gap-1 border-b px-4 py-2"
+        className="flex shrink-0 items-center gap-1 border-b px-2 py-2 sm:px-4"
         style={{ borderColor: 'var(--color-border)' }}
       >
+        <ToolbarButton
+          onClick={() => setSelectedArticle(null)}
+          icon={
+            <ArrowLeft
+              size={16}
+              style={{ color: 'var(--color-text-secondary)' }}
+            />
+          }
+          className="lg:hidden"
+        />
+
         <ToolbarButton
           onClick={handleToggleStar}
           icon={
@@ -144,6 +174,32 @@ export function ArticleReader() {
           }
         />
 
+        {/* Font Size Selector */}
+        <div className="flex items-center gap-0.5 rounded-lg border px-1 py-0.5" style={{ borderColor: 'var(--color-border)' }}>
+          <Type size={14} style={{ color: 'var(--color-text-tertiary)' }} className="mx-1" />
+          {(['small', 'medium', 'large'] as const).map((size) => (
+            <button
+              key={size}
+              onClick={() => setFontSize(size)}
+              className="rounded px-2 py-1 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: fontSize === size ? 'var(--color-accent-light)' : 'transparent',
+                color: fontSize === size ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              }}
+              onMouseEnter={(e) => {
+                if (fontSize !== size) {
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = fontSize === size ? 'var(--color-accent-light)' : 'transparent'
+              }}
+            >
+              {size === 'small' ? 'S' : size === 'medium' ? 'M' : 'L'}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1" />
 
         <button
@@ -175,7 +231,7 @@ export function ArticleReader() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
         {/* Article header */}
         <h1
           className="text-2xl font-bold leading-tight"
@@ -244,8 +300,11 @@ export function ArticleReader() {
 
             {displaySummary && (
               <div
-                className="prose prose-sm max-w-none text-sm leading-relaxed dark:prose-invert"
-                style={{ color: 'var(--color-text-primary)' }}
+                className="prose max-w-none leading-relaxed dark:prose-invert"
+                style={{
+                  color: 'var(--color-text-primary)',
+                  fontSize: fontSize === 'small' ? '0.875rem' : fontSize === 'medium' ? '1rem' : '1.125rem',
+                }}
               >
                 <ReactMarkdown>{displaySummary}</ReactMarkdown>
               </div>
@@ -278,12 +337,12 @@ export function ArticleReader() {
 
         {/* Article body */}
         <div
-          className="article-content"
+          className={`article-content article-content--${fontSize}`}
           style={{
             color: 'var(--color-text-primary)',
             lineHeight: '1.75',
           }}
-          dangerouslySetInnerHTML={{ __html: article.content }}
+          dangerouslySetInnerHTML={{ __html: processedContent }}
         />
       </div>
     </div>
@@ -294,15 +353,17 @@ function ToolbarButton({
   onClick,
   icon,
   label,
+  className = '',
 }: {
   onClick: () => void
   icon: React.ReactNode
   label?: string
+  className?: string
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition-colors"
+      className={`flex items-center gap-1.5 rounded-lg px-2 py-2.5 text-xs transition-colors sm:py-1.5 ${className}`}
       style={{
         color: 'var(--color-text-secondary)',
         backgroundColor: 'transparent',
@@ -315,7 +376,7 @@ function ToolbarButton({
       }
     >
       {icon}
-      {label && <span>{label}</span>}
+      {label && <span className="hidden sm:inline">{label}</span>}
     </button>
   )
 }

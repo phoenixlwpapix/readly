@@ -28,6 +28,7 @@ export interface Folder {
   id: string
   name: string
   isExpanded: boolean
+  sortBy?: string
 }
 
 export interface OPMLOutline {

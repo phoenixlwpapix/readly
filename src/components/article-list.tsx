@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Rss, FileText, Star, ArrowUpDown } from 'lucide-react'
+import { Rss, FileText, Star, ArrowUpDown, Menu } from 'lucide-react'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
 import { formatRelativeDate, cn } from '@/lib/utils'
@@ -29,6 +29,7 @@ export function ArticleList() {
   const sortOrder = useUIStore((s) => s.sortOrder)
   const setSelectedArticle = useUIStore((s) => s.setSelectedArticle)
   const setSortOrder = useUIStore((s) => s.setSortOrder)
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen)
 
   const [unreadFilter, setUnreadFilter] = useLocalUnreadFilter()
 
@@ -152,20 +153,37 @@ export function ArticleList() {
         className="shrink-0 border-b px-4 py-3"
         style={{ borderColor: 'var(--color-border)' }}
       >
-        <h2
-          className="text-lg font-bold leading-tight"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
-          {headerTitle}
-        </h2>
-        {headerDescription && (
-          <p
-            className="mt-0.5 truncate text-xs"
-            style={{ color: 'var(--color-text-tertiary)' }}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="shrink-0 rounded-lg p-1.5 transition-colors lg:hidden"
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)')
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = 'transparent')
+            }
           >
-            {headerDescription}
-          </p>
-        )}
+            <Menu size={20} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h2
+              className="truncate text-lg font-bold leading-tight"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              {headerTitle}
+            </h2>
+            {headerDescription && (
+              <p
+                className="mt-0.5 truncate text-xs"
+                style={{ color: 'var(--color-text-tertiary)' }}
+              >
+                {headerDescription}
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Controls row */}
         <div className="mt-2 flex items-center gap-2">
@@ -376,7 +394,7 @@ function ArticleCard({
       {/* Star button */}
       <button
         onClick={(e) => onStarClick(e, article.id, article.isStarred)}
-        className="absolute right-2 top-2 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-2 top-2 rounded p-1 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
         style={{
           opacity: article.isStarred ? 1 : undefined,
           color: article.isStarred

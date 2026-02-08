@@ -169,6 +169,42 @@ export const feedActions = {
 
         await db.transact(txs)
     },
+
+    async markAllAsRead(feedId: string) {
+        const { data } = await db.queryOnce({
+            feedItems: {
+                $: { where: { 'feed.id': feedId } },
+            },
+        })
+        const unreadItems = (data?.feedItems ?? []).filter((i) => !i.isRead)
+        if (unreadItems.length === 0) return
+
+        const txs = unreadItems.map((item) =>
+            db.tx.feedItems[item.id].update({ isRead: true })
+        )
+        await db.transact(txs)
+    },
+
+    async renameFeed(feedId: string, newTitle: string) {
+        await db.transact([db.tx.feeds[feedId].update({ title: newTitle })])
+    },
+
+    async moveFeedToFolder(feedId: string, folderId: string | null) {
+        if (folderId) {
+            await db.transact([db.tx.feeds[feedId].link({ folder: folderId })])
+        } else {
+            const { data } = await db.queryOnce({
+                feeds: {
+                    $: { where: { id: feedId } },
+                    folder: {},
+                },
+            })
+            const currentFolderId = data?.feeds?.[0]?.folder?.id
+            if (currentFolderId) {
+                await db.transact([db.tx.feeds[feedId].unlink({ folder: currentFolderId })])
+            }
+        }
+    },
 }
 
 export const folderActions = {
@@ -190,6 +226,14 @@ export const folderActions = {
 
     async toggleFolder(folderId: string, isExpanded: boolean) {
         await db.transact([db.tx.folders[folderId].update({ isExpanded: !isExpanded })])
+    },
+
+    async renameFolder(folderId: string, newName: string) {
+        await db.transact([db.tx.folders[folderId].update({ name: newName })])
+    },
+
+    async setFolderSort(folderId: string, sortBy: string) {
+        await db.transact([db.tx.folders[folderId].update({ sortBy })])
     },
 }
 
