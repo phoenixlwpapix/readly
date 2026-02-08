@@ -15,6 +15,7 @@ const _schema = i.schema({
             name: i.string().indexed(),
             isExpanded: i.boolean(),
             sortBy: i.string().optional(),
+            order: i.number().indexed(),
             createdAt: i.number().indexed(),
         }),
         feedItems: i.entity({

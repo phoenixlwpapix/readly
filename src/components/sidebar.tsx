@@ -20,6 +20,8 @@ import {
   Folder,
   CornerUpLeft,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   X,
 } from 'lucide-react'
 import { useUIStore } from '@/lib/ui-store'
@@ -248,7 +250,7 @@ export function Sidebar() {
       {/* Feeds */}
       <div className="flex-1 overflow-y-auto px-2">
         {/* Folders */}
-        {folders.map((folder) => {
+        {folders.map((folder, index) => {
           const folderFeeds = sortFolderFeeds(
             getFeedsInFolder(folder.id),
             folder.sortBy,
@@ -261,6 +263,8 @@ export function Sidebar() {
               isExpanded={folder.isExpanded}
               sortBy={folder.sortBy}
               feedCount={folderFeeds.length}
+              isFirst={index === 0}
+              isLast={index === folders.length - 1}
             >
               {folder.isExpanded && (
                 <div className="ml-2 space-y-0.5">
@@ -382,6 +386,8 @@ function FolderItem({
   isExpanded,
   sortBy,
   feedCount,
+  isFirst,
+  isLast,
   children,
 }: {
   folderId: string
@@ -389,6 +395,8 @@ function FolderItem({
   isExpanded: boolean
   sortBy?: string | null
   feedCount: number
+  isFirst: boolean
+  isLast: boolean
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -457,6 +465,16 @@ function FolderItem({
   const handleSortChange = async (value: string) => {
     setMenuOpen(false)
     await folderActions.setFolderSort(folderId, value)
+  }
+
+  const handleMoveUp = async () => {
+    setMenuOpen(false)
+    await folderActions.reorderFolder(folderId, 'up')
+  }
+
+  const handleMoveDown = async () => {
+    setMenuOpen(false)
+    await folderActions.reorderFolder(folderId, 'down')
   }
 
   return (
@@ -550,6 +568,22 @@ function FolderItem({
                     setMenuView('sort')
                   }}
                   hasSubmenu
+                />
+                <div
+                  className="my-1 h-px"
+                  style={{ backgroundColor: 'var(--color-border)' }}
+                />
+                <DropdownItem
+                  icon={<ArrowUp size={14} />}
+                  label="Move Up"
+                  onClick={handleMoveUp}
+                  disabled={isFirst}
+                />
+                <DropdownItem
+                  icon={<ArrowDown size={14} />}
+                  label="Move Down"
+                  onClick={handleMoveDown}
+                  disabled={isLast}
                 />
                 <div
                   className="my-1 h-px"
@@ -888,6 +922,7 @@ function DropdownItem({
   danger = false,
   hasSubmenu = false,
   checked = false,
+  disabled = false,
 }: {
   icon?: React.ReactNode
   label: string
@@ -895,16 +930,20 @@ function DropdownItem({
   danger?: boolean
   hasSubmenu?: boolean
   checked?: boolean
+  disabled?: boolean
 }) {
   return (
     <button
-      onClick={onClick}
-      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm transition-colors"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       style={{
         color: danger ? 'var(--color-danger)' : 'var(--color-text-primary)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        if (!disabled) {
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        }
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = 'transparent'

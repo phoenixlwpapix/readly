@@ -24,7 +24,7 @@ export function useFeeds() {
 export function useFolders() {
     const { data, isLoading, error } = db.useQuery({
         folders: {
-            $: { order: { createdAt: 'asc' } },
+            $: { order: { order: 'asc' } },
         },
     })
     return { folders: data?.folders ?? [], isLoading, error }
@@ -216,10 +216,14 @@ export const feedActions = {
 export const folderActions = {
     async addFolder(folder: Folder) {
         const folderId = folder.id || id()
+        // Get the max order to place new folder at the end
+        const { data } = await db.queryOnce({ folders: {} })
+        const maxOrder = Math.max(0, ...((data?.folders ?? []).map((f) => f.order ?? 0)))
         await db.transact([
             db.tx.folders[folderId].update({
                 name: folder.name,
                 isExpanded: folder.isExpanded,
+                order: maxOrder + 1,
                 createdAt: Date.now(),
             }),
         ])
@@ -240,6 +244,28 @@ export const folderActions = {
 
     async setFolderSort(folderId: string, sortBy: string) {
         await db.transact([db.tx.folders[folderId].update({ sortBy })])
+    },
+
+    async reorderFolder(folderId: string, direction: 'up' | 'down') {
+        // Get all folders sorted by order
+        const { data } = await db.queryOnce({
+            folders: { $: { order: { order: 'asc' } } },
+        })
+        const folders = data?.folders ?? []
+        const currentIndex = folders.findIndex((f) => f.id === folderId)
+        if (currentIndex === -1) return
+
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+        if (targetIndex < 0 || targetIndex >= folders.length) return
+
+        const current = folders[currentIndex]
+        const target = folders[targetIndex]
+
+        // Swap order values
+        await db.transact([
+            db.tx.folders[current.id].update({ order: target.order ?? targetIndex }),
+            db.tx.folders[target.id].update({ order: current.order ?? currentIndex }),
+        ])
     },
 }
 

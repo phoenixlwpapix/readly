@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: geminiModel,
     system:
-      'You are a helpful article summarizer. Provide concise, informative summaries in bullet point format. Use 3-5 bullet points. Each bullet should capture a key insight or fact from the article. Write in clear, simple language.',
+      'You are an article summarizer. Output ONLY the summary content directly - no preamble, no "Here is a summary", no introductions. Use 3-5 bullet points. Each bullet should capture a key insight or fact. Write in clear, simple language.',
     prompt: `Summarize this article titled "${title}":\n\n${cleanContent}`,
     onError({ error }) {
       console.error('[Summarize API] Streaming error:', error)
