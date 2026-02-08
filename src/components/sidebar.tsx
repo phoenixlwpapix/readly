@@ -23,6 +23,8 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, useFolders, feedActions, folderActions } from '@/lib/feed-store'
@@ -67,6 +69,8 @@ export function Sidebar() {
   const setSelectedFeed = useUIStore((s) => s.setSelectedFeed)
   const setFilterMode = useUIStore((s) => s.setFilterMode)
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen)
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
+  const toggleSidebarCollapsed = useUIStore((s) => s.toggleSidebarCollapsed)
 
   const { theme, setTheme } = useTheme()
   const [showAddFeed, setShowAddFeed] = useState(false)
@@ -126,25 +130,30 @@ export function Sidebar() {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div
-        className="flex items-center gap-2.5 border-b px-4 py-4"
+        className={`flex items-center border-b px-4 py-4 ${sidebarCollapsed ? 'justify-center lg:px-2' : 'gap-2.5'}`}
         style={{ borderColor: 'var(--color-border)' }}
       >
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Rss size={16} color="white" />
         </div>
-        <span
-          className="text-lg font-bold tracking-tight"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
-          Readly
-        </span>
-        <div className="flex-1" />
+        {!sidebarCollapsed && (
+          <>
+            <span
+              className="text-lg font-bold tracking-tight"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              Readly
+            </span>
+            <div className="flex-1" />
+          </>
+        )}
+        {/* Mobile close button */}
         <button
           onClick={() => setSidebarOpen(false)}
-          className="rounded-lg p-1.5 transition-colors lg:hidden"
+          className={`rounded-lg p-1.5 transition-colors lg:hidden ${sidebarCollapsed ? 'hidden' : ''}`}
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseEnter={(e) =>
             (e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)')
@@ -154,6 +163,21 @@ export function Sidebar() {
           }
         >
           <X size={20} />
+        </button>
+        {/* Desktop collapse button */}
+        <button
+          onClick={toggleSidebarCollapsed}
+          className="hidden rounded-lg p-1.5 transition-colors lg:block"
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)')
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = 'transparent')
+          }
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {sidebarCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
         </button>
       </div>
 
@@ -165,7 +189,8 @@ export function Sidebar() {
             setSelectedFeed(null)
             setSidebarOpen(false)
           }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200"
+          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
           style={{
             backgroundColor:
               filterMode === 'all' && !selectedFeedId
@@ -186,18 +211,23 @@ export function Sidebar() {
               e.currentTarget.style.backgroundColor = 'transparent'
             }
           }}
+          title={sidebarCollapsed ? 'All Articles' : undefined}
         >
           <Layers size={18} />
-          <span className="flex-1 text-left">All Articles</span>
-          <span
-            className="rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--color-bg-tertiary)',
-              color: 'var(--color-text-tertiary)',
-            }}
-          >
-            {allArticlesCount}
-          </span>
+          {!sidebarCollapsed && (
+            <>
+              <span className="flex-1 text-left">All Articles</span>
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{
+                  backgroundColor: 'var(--color-bg-tertiary)',
+                  color: 'var(--color-text-tertiary)',
+                }}
+              >
+                {allArticlesCount}
+              </span>
+            </>
+          )}
         </button>
 
         <button
@@ -205,7 +235,8 @@ export function Sidebar() {
             setFilterMode('starred')
             setSidebarOpen(false)
           }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200"
+          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
           style={{
             backgroundColor:
               filterMode === 'starred'
@@ -226,99 +257,109 @@ export function Sidebar() {
               e.currentTarget.style.backgroundColor = 'transparent'
             }
           }}
+          title={sidebarCollapsed ? 'Starred' : undefined}
         >
           <Star size={18} />
-          <span className="flex-1 text-left">Starred</span>
-          <span
-            className="rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--color-bg-tertiary)',
-              color: 'var(--color-text-tertiary)',
-            }}
-          >
-            {starredCount}
-          </span>
+          {!sidebarCollapsed && (
+            <>
+              <span className="flex-1 text-left">Starred</span>
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{
+                  backgroundColor: 'var(--color-bg-tertiary)',
+                  color: 'var(--color-text-tertiary)',
+                }}
+              >
+                {starredCount}
+              </span>
+            </>
+          )}
         </button>
       </nav>
 
       {/* Divider */}
       <div
-        className="mx-4 my-3 border-t"
+        className={`my-3 border-t ${sidebarCollapsed ? 'mx-2' : 'mx-4'}`}
         style={{ borderColor: 'var(--color-border)' }}
       />
 
-      {/* Feeds */}
-      <div className="flex-1 overflow-y-auto px-2">
-        {/* Folders */}
-        {folders.map((folder, index) => {
-          const folderFeeds = sortFolderFeeds(
-            getFeedsInFolder(folder.id),
-            folder.sortBy,
-          )
-          return (
-            <FolderItem
-              key={folder.id}
-              folderId={folder.id}
-              name={folder.name}
-              isExpanded={folder.isExpanded}
-              sortBy={folder.sortBy}
-              feedCount={folderFeeds.length}
-              isFirst={index === 0}
-              isLast={index === folders.length - 1}
-            >
-              {folder.isExpanded && (
-                <div className="ml-2 space-y-0.5">
-                  {folderFeeds.map((feed) => (
-                    <FeedItem
-                      key={feed.id}
-                      feedId={feed.id}
-                      title={feed.title}
-                      unreadCount={getUnreadCount(feed.id)}
-                      isSelected={selectedFeedId === feed.id}
-                      folders={folders}
-                      onSelect={() => {
-                        setSelectedFeed(feed.id)
-                        setFilterMode('all')
-                        setSidebarOpen(false)
-                      }}
-                      onRemove={() => handleRemoveFeed(feed.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </FolderItem>
-          )
-        })}
+      {/* Feeds - hidden when collapsed */}
+      {!sidebarCollapsed && (
+        <div className="flex-1 overflow-y-auto px-2">
+          {/* Folders */}
+          {folders.map((folder, index) => {
+            const folderFeeds = sortFolderFeeds(
+              getFeedsInFolder(folder.id),
+              folder.sortBy,
+            )
+            return (
+              <FolderItem
+                key={folder.id}
+                folderId={folder.id}
+                name={folder.name}
+                isExpanded={folder.isExpanded}
+                sortBy={folder.sortBy}
+                feedCount={folderFeeds.length}
+                isFirst={index === 0}
+                isLast={index === folders.length - 1}
+              >
+                {folder.isExpanded && (
+                  <div className="ml-2 space-y-0.5">
+                    {folderFeeds.map((feed) => (
+                      <FeedItem
+                        key={feed.id}
+                        feedId={feed.id}
+                        title={feed.title}
+                        unreadCount={getUnreadCount(feed.id)}
+                        isSelected={selectedFeedId === feed.id}
+                        folders={folders}
+                        onSelect={() => {
+                          setSelectedFeed(feed.id)
+                          setFilterMode('all')
+                          setSidebarOpen(false)
+                        }}
+                        onRemove={() => handleRemoveFeed(feed.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </FolderItem>
+            )
+          })}
 
-        {/* Uncategorized */}
-        {uncategorizedFeeds.length > 0 && (
-          <div className="mb-1">
-            <div
-              className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
-              style={{ color: 'var(--color-text-tertiary)' }}
-            >
-              Uncategorized
+          {/* Uncategorized */}
+          {uncategorizedFeeds.length > 0 && (
+            <div className="mb-1">
+              <div
+                className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--color-text-tertiary)' }}
+              >
+                Uncategorized
+              </div>
+              <div className="space-y-0.5">
+                {uncategorizedFeeds.map((feed) => (
+                  <FeedItem
+                    key={feed.id}
+                    feedId={feed.id}
+                    title={feed.title}
+                    unreadCount={getUnreadCount(feed.id)}
+                    isSelected={selectedFeedId === feed.id}
+                    folders={folders}
+                    onSelect={() => {
+                      setSelectedFeed(feed.id)
+                      setFilterMode('all')
+                    }}
+                    onRemove={() => handleRemoveFeed(feed.id)}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="space-y-0.5">
-              {uncategorizedFeeds.map((feed) => (
-                <FeedItem
-                  key={feed.id}
-                  feedId={feed.id}
-                  title={feed.title}
-                  unreadCount={getUnreadCount(feed.id)}
-                  isSelected={selectedFeedId === feed.id}
-                  folders={folders}
-                  onSelect={() => {
-                    setSelectedFeed(feed.id)
-                    setFilterMode('all')
-                  }}
-                  onRemove={() => handleRemoveFeed(feed.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {/* Spacer when collapsed */}
+      {sidebarCollapsed && <div className="flex-1" />}
 
       {/* Bottom actions */}
       <div
@@ -327,7 +368,8 @@ export function Sidebar() {
       >
         <button
           onClick={() => setShowAddFeed(true)}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200"
+          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
@@ -335,13 +377,15 @@ export function Sidebar() {
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'
           }}
+          title={sidebarCollapsed ? 'Add Feed' : undefined}
         >
           <Plus size={18} />
-          Add Feed
+          {!sidebarCollapsed && 'Add Feed'}
         </button>
         <button
           onClick={() => setShowImportOPML(true)}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200"
+          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
@@ -349,13 +393,15 @@ export function Sidebar() {
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'
           }}
+          title={sidebarCollapsed ? 'Import OPML' : undefined}
         >
           <Upload size={18} />
-          Import OPML
+          {!sidebarCollapsed && 'Import OPML'}
         </button>
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200"
+          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
           style={{ color: 'var(--color-text-secondary)' }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
@@ -363,9 +409,10 @@ export function Sidebar() {
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'
           }}
+          title={sidebarCollapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          {!sidebarCollapsed && (theme === 'dark' ? 'Light Mode' : 'Dark Mode')}
         </button>
       </div>
 

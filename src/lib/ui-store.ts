@@ -13,6 +13,7 @@ interface UIState {
     sortOrder: 'newest' | 'oldest'
     fontSize: FontSize
     sidebarOpen: boolean
+    sidebarCollapsed: boolean
 
     setSelectedFeed: (feedId: string | null) => void
     setSelectedArticle: (articleId: string | null) => void
@@ -20,6 +21,7 @@ interface UIState {
     setSortOrder: (order: 'newest' | 'oldest') => void
     setFontSize: (size: FontSize) => void
     setSidebarOpen: (open: boolean) => void
+    toggleSidebarCollapsed: () => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -31,6 +33,7 @@ export const useUIStore = create<UIState>()(
             sortOrder: 'newest',
             fontSize: 'medium',
             sidebarOpen: false,
+            sidebarCollapsed: false,
 
             setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedArticleId: null }),
             setSelectedArticle: (articleId) => set({ selectedArticleId: articleId }),
@@ -38,10 +41,11 @@ export const useUIStore = create<UIState>()(
             setSortOrder: (order) => set({ sortOrder: order }),
             setFontSize: (size) => set({ fontSize: size }),
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
+            toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
         }),
         {
             name: 'readly-ui-settings',
-            partialize: (state) => ({ fontSize: state.fontSize }),
+            partialize: (state) => ({ fontSize: state.fontSize, sidebarCollapsed: state.sidebarCollapsed }),
         }
     )
 )
