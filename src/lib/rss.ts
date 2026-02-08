@@ -25,7 +25,7 @@ interface RSSItem {
 interface AtomEntry {
   title?: string | { '#text': string }
   link?: { '@_href'?: string } | Array<{ '@_href'?: string; '@_rel'?: string }>
-  summary?: string
+  summary?: string | { '#text': string }
   content?: string | { '#text': string }
   author?: { name?: string }
   updated?: string
@@ -136,7 +136,7 @@ function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedI
 
 function parseAtomEntries(entries: AtomEntry[], feedId: string, baseUrl: string): FeedItem[] {
   return entries.map((entry) => {
-    const rawContent = extractText(entry.content) || entry.summary
+    const rawContent = extractText(entry.content) || extractText(entry.summary)
     const content = typeof rawContent === 'string' ? resolveContentUrls(rawContent, baseUrl) : ''
     return {
       id: generateId(),
