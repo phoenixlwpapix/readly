@@ -344,6 +344,29 @@ export function ArticleReader() {
           }}
           dangerouslySetInnerHTML={{ __html: processedContent }}
         />
+
+        {/* Read Original Article button */}
+        <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--color-border)' }}>
+          <button
+            onClick={() => window.open(article.link, '_blank', 'noopener')}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium transition-all duration-200"
+            style={{
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
+              e.currentTarget.style.borderColor = 'var(--color-text-tertiary)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.borderColor = 'var(--color-border)'
+            }}
+          >
+            <ExternalLink size={16} />
+            Read Original Article
+          </button>
+        </div>
       </div>
     </div>
   )
