@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
 import { Rss, FileText, Star, ArrowUpDown, Menu } from 'lucide-react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
 import { formatRelativeDate, cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ export function ArticleList() {
   const { feeds, isLoading } = useFeeds()
 
   const selectedFeedId = useUIStore((s) => s.selectedFeedId)
+  const selectedFolderId = useUIStore((s) => s.selectedFolderId)
   const selectedArticleId = useUIStore((s) => s.selectedArticleId)
   const filterMode = useUIStore((s) => s.filterMode)
   const sortOrder = useUIStore((s) => s.sortOrder)
@@ -38,6 +40,11 @@ export function ArticleList() {
     [feeds, selectedFeedId]
   )
 
+  const folderFeeds = useMemo(
+    () => selectedFolderId ? feeds.filter((f) => f.folder?.id === selectedFolderId) : [],
+    [feeds, selectedFolderId]
+  )
+
   const feedNameMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const feed of feeds) {
@@ -49,13 +56,20 @@ export function ArticleList() {
   const headerTitle = useMemo(() => {
     if (filterMode === 'starred') return 'Starred'
     if (selectedFeed) return selectedFeed.title
+    if (selectedFolderId) {
+      const folder = folderFeeds[0]?.folder
+      return folder?.name ?? 'Folder'
+    }
     return 'All Articles'
-  }, [filterMode, selectedFeed])
+  }, [filterMode, selectedFeed, selectedFolderId, folderFeeds])
 
   const headerDescription = useMemo(() => {
     if (selectedFeed) return selectedFeed.description
+    if (selectedFolderId && folderFeeds.length > 0) {
+      return `${folderFeeds.length} feed${folderFeeds.length === 1 ? '' : 's'}`
+    }
     return null
-  }, [selectedFeed])
+  }, [selectedFeed, selectedFolderId, folderFeeds])
 
   const articles = useMemo(() => {
     let items: FeedItemDisplay[] = []
@@ -72,6 +86,10 @@ export function ArticleList() {
         feedId: selectedFeedId,
         imageUrl: i.imageUrl ?? undefined
       }))
+    } else if (selectedFolderId) {
+      items = folderFeeds.flatMap((f) =>
+        (f.items ?? []).map((i) => ({ ...i, feedId: f.id, imageUrl: i.imageUrl ?? undefined }))
+      )
     } else {
       items = feeds.flatMap((f) =>
         (f.items ?? []).map((i) => ({ ...i, feedId: f.id, imageUrl: i.imageUrl ?? undefined }))
@@ -82,16 +100,22 @@ export function ArticleList() {
       items = items.filter((i) => !i.isRead)
     }
 
+    // Pre-compute timestamps to avoid repeated Date parsing in sort comparator
+    const tsMap = new Map<string, number>()
+    for (const item of items) {
+      tsMap.set(item.id, new Date(item.pubDate).getTime() || 0)
+    }
+
     items.sort((a, b) => {
-      const dateA = new Date(a.pubDate).getTime()
-      const dateB = new Date(b.pubDate).getTime()
-      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB
+      const tsA = tsMap.get(a.id)!
+      const tsB = tsMap.get(b.id)!
+      return sortOrder === 'newest' ? tsB - tsA : tsA - tsB
     })
 
     return items
-  }, [feeds, selectedFeedId, selectedFeed, filterMode, sortOrder, unreadFilter])
+  }, [feeds, selectedFeedId, selectedFeed, selectedFolderId, folderFeeds, filterMode, sortOrder, unreadFilter])
 
-  const showFeedName = filterMode === 'starred' || !selectedFeedId
+  const showFeedName = filterMode === 'starred' || (!selectedFeedId && !!selectedFolderId) || !selectedFeedId
 
   const handleArticleClick = useCallback(
     async (article: FeedItemDisplay) => {
@@ -103,6 +127,27 @@ export function ArticleList() {
     [setSelectedArticle]
   )
 
+  // Auto-select first article when feed, folder, or filter changes
+  const prevFeedId = useRef(selectedFeedId)
+  const prevFolderId = useRef(selectedFolderId)
+  const prevFilterMode = useRef(filterMode)
+
+  useEffect(() => {
+    const feedChanged = prevFeedId.current !== selectedFeedId
+    const folderChanged = prevFolderId.current !== selectedFolderId
+    const filterChanged = prevFilterMode.current !== filterMode
+    prevFeedId.current = selectedFeedId
+    prevFolderId.current = selectedFolderId
+    prevFilterMode.current = filterMode
+
+    if ((feedChanged || folderChanged || filterChanged) && articles.length > 0) {
+      setSelectedArticle(articles[0].id)
+      if (!articles[0].isRead) {
+        itemActions.markAsRead(articles[0].id)
+      }
+    }
+  }, [selectedFeedId, selectedFolderId, filterMode, articles, setSelectedArticle])
+
   const handleStarClick = useCallback(
     async (e: React.MouseEvent, articleId: string, isStarred: boolean) => {
       e.stopPropagation()
@@ -110,6 +155,21 @@ export function ArticleList() {
     },
     []
   )
+
+  // Virtual list setup
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Reset scroll position when feed/folder/filter changes
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [selectedFeedId, selectedFolderId, filterMode])
+
+  const virtualizer = useVirtualizer({
+    count: articles.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 84,
+    overscan: 10,
+  })
 
   if (isLoading) {
     return (
@@ -232,8 +292,8 @@ export function ArticleList() {
         </div>
       </div>
 
-      {/* Articles */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Articles — virtualized */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {articles.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
             <FileText
@@ -257,17 +317,40 @@ export function ArticleList() {
             </p>
           </div>
         ) : (
-          articles.map((article) => (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              isSelected={article.id === selectedArticleId}
-              showFeedName={showFeedName}
-              feedName={feedNameMap.get(article.feedId)}
-              onSelect={handleArticleClick}
-              onStarClick={handleStarClick}
-            />
-          ))
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const article = articles[virtualRow.index]
+              return (
+                <div
+                  key={article.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <ArticleCard
+                    article={article}
+                    isSelected={article.id === selectedArticleId}
+                    showFeedName={showFeedName}
+                    feedName={feedNameMap.get(article.feedId)}
+                    onSelect={handleArticleClick}
+                    onStarClick={handleStarClick}
+                  />
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -300,7 +383,7 @@ function FilterPill({
   )
 }
 
-function ArticleCard({
+const ArticleCard = memo(function ArticleCard({
   article,
   isSelected,
   showFeedName,
@@ -409,7 +492,7 @@ function ArticleCard({
       </button>
     </div>
   )
-}
+})
 
 /** Local state hook for the unread-only filter toggle */
 function useLocalUnreadFilter(): [boolean, (v: boolean) => void] {

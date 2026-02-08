@@ -12,6 +12,7 @@
     "@ai-sdk/google": "^3.0.22",
     "@ai-sdk/react": "^3.0.77",
     "@instantdb/react": "^0.22.126",
+    "@tanstack/react-virtual": "^3.13.18",
     "ai": "^6.0.75",
     "fast-xml-parser": "^5.3.4",
     "lucide-react": "^0.563.0",

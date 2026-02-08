@@ -66,8 +66,10 @@ export function Sidebar() {
   const { folders } = useFolders()
 
   const selectedFeedId = useUIStore((s) => s.selectedFeedId)
+  const selectedFolderId = useUIStore((s) => s.selectedFolderId)
   const filterMode = useUIStore((s) => s.filterMode)
   const setSelectedFeed = useUIStore((s) => s.setSelectedFeed)
+  const setSelectedFolder = useUIStore((s) => s.setSelectedFolder)
   const setFilterMode = useUIStore((s) => s.setFilterMode)
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen)
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -201,21 +203,21 @@ export function Sidebar() {
             }`}
           style={{
             backgroundColor:
-              filterMode === 'all' && !selectedFeedId
+              filterMode === 'all' && !selectedFeedId && !selectedFolderId
                 ? 'var(--color-accent-light)'
                 : 'transparent',
             color:
-              filterMode === 'all' && !selectedFeedId
+              filterMode === 'all' && !selectedFeedId && !selectedFolderId
                 ? 'var(--color-accent)'
                 : 'var(--color-text-secondary)',
           }}
           onMouseEnter={(e) => {
-            if (!(filterMode === 'all' && !selectedFeedId)) {
+            if (!(filterMode === 'all' && !selectedFeedId && !selectedFolderId)) {
               e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
             }
           }}
           onMouseLeave={(e) => {
-            if (!(filterMode === 'all' && !selectedFeedId)) {
+            if (!(filterMode === 'all' && !selectedFeedId && !selectedFolderId)) {
               e.currentTarget.style.backgroundColor = 'transparent'
             }
           }}
@@ -339,10 +341,16 @@ export function Sidebar() {
                 folderId={folder.id}
                 name={folder.name}
                 isExpanded={folder.isExpanded}
+                isSelected={selectedFolderId === folder.id}
                 sortBy={folder.sortBy}
                 feedCount={folderFeeds.length}
                 isFirst={index === 0}
                 isLast={index === folders.length - 1}
+                onSelect={() => {
+                  setSelectedFolder(folder.id)
+                  setFilterMode('all')
+                  setSidebarOpen(false)
+                }}
               >
                 {folder.isExpanded && (
                   <div className="ml-2 space-y-0.5">
@@ -476,19 +484,23 @@ function FolderItem({
   folderId,
   name,
   isExpanded,
+  isSelected,
   sortBy,
   feedCount,
   isFirst,
   isLast,
+  onSelect,
   children,
 }: {
   folderId: string
   name: string
   isExpanded: boolean
+  isSelected: boolean
   sortBy?: string | null
   feedCount: number
   isFirst: boolean
   isLast: boolean
+  onSelect: () => void
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -573,19 +585,37 @@ function FolderItem({
     <div className="mb-1">
       <div
         className="group relative flex items-center rounded-lg transition-all duration-200"
+        style={{
+          backgroundColor: isSelected ? 'var(--color-accent-light)' : 'transparent',
+        }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+          if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent'
+          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'
         }}
       >
+        {/* Chevron toggles expand/collapse */}
         <button
           onClick={handleToggle}
-          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--color-text-tertiary)' }}
+          className="ml-2 shrink-0 rounded p-1 transition-all duration-200"
+          style={{ color: isSelected ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+
+        {/* Folder name selects folder */}
+        <button
+          onClick={isRenaming ? undefined : onSelect}
+          className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-1 text-xs font-semibold uppercase tracking-wider"
+          style={{ color: isSelected ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+        >
           {isRenaming ? (
             <input
               ref={inputRef}

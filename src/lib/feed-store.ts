@@ -49,14 +49,28 @@ export async function getExistingFeedUrls(): Promise<Set<string>> {
     return new Set((data?.feeds ?? []).map((f) => f.url))
 }
 
+// Batch transact to avoid InstantDB timeout on large operations
+const BATCH_SIZE = 20
+
+type TxChunk = Extract<Parameters<typeof db.transact>[0], unknown[]>[number]
+
+async function batchTransact(txs: TxChunk[]) {
+    if (txs.length <= BATCH_SIZE) {
+        await db.transact(txs)
+        return
+    }
+    for (let i = 0; i < txs.length; i += BATCH_SIZE) {
+        await db.transact(txs.slice(i, i + BATCH_SIZE))
+    }
+}
+
 // Actions for mutating data
 export const feedActions = {
     async addFeed(feed: Feed & { folderId?: string | null }) {
-        // Always generate a new UUID - InstantDB requires UUID format
         const feedId = id()
 
-        // Build transactions for the feed itself
-        const txs: Parameters<typeof db.transact>[0] = [
+        // Create the feed record first
+        const feedTxs: Parameters<typeof db.transact>[0] = [
             db.tx.feeds[feedId].update({
                 title: feed.title,
                 url: feed.url,
@@ -67,36 +81,33 @@ export const feedActions = {
                 createdAt: Date.now(),
             }),
         ]
-
-        // Link to folder if specified
         if (feed.folderId) {
-            txs.push(db.tx.feeds[feedId].link({ folder: feed.folderId }))
+            feedTxs.push(db.tx.feeds[feedId].link({ folder: feed.folderId }))
         }
+        await db.transact(feedTxs)
 
-        // Add all items
+        // Batch-insert items
         if (feed.items && feed.items.length > 0) {
-            for (const item of feed.items) {
+            const itemTxs = feed.items.map((item) => {
                 const itemId = id()
-                txs.push(
-                    db.tx.feedItems[itemId]
-                        .update({
-                            title: item.title,
-                            link: item.link,
-                            content: item.content,
-                            contentSnippet: item.contentSnippet,
-                            author: item.author,
-                            pubDate: item.pubDate,
-                            imageUrl: item.imageUrl ?? null,
-                            isRead: false,
-                            isStarred: false,
-                            createdAt: Date.now(),
-                        })
-                        .link({ feed: feedId })
-                )
-            }
+                return db.tx.feedItems[itemId]
+                    .update({
+                        title: item.title,
+                        link: item.link,
+                        content: item.content,
+                        contentSnippet: item.contentSnippet,
+                        author: item.author,
+                        pubDate: item.pubDate,
+                        imageUrl: item.imageUrl ?? null,
+                        isRead: false,
+                        isStarred: false,
+                        createdAt: Date.now(),
+                    })
+                    .link({ feed: feedId })
+            })
+            await batchTransact(itemTxs)
         }
 
-        await db.transact(txs)
         return feedId
     },
 
@@ -124,7 +135,7 @@ export const feedActions = {
             return
         }
 
-        const txs = newItems.map((item) => {
+        const itemTxs = newItems.map((item) => {
             const itemId = id()
             return db.tx.feedItems[itemId]
                 .update({
@@ -142,8 +153,8 @@ export const feedActions = {
                 .link({ feed: feedId })
         })
 
+        await batchTransact(itemTxs)
         await db.transact([
-            ...txs,
             db.tx.feeds[feedId].update({ lastFetched: new Date().toISOString() }),
         ])
     },
@@ -173,7 +184,7 @@ export const feedActions = {
                 : [baseTx]
         })
 
-        await db.transact(txs)
+        await batchTransact(txs)
     },
 
     async markAllAsRead(feedId: string) {
@@ -188,7 +199,7 @@ export const feedActions = {
         const txs = unreadItems.map((item) =>
             db.tx.feedItems[item.id].update({ isRead: true })
         )
-        await db.transact(txs)
+        await batchTransact(txs)
     },
 
     async renameFeed(feedId: string, newTitle: string) {

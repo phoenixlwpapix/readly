@@ -8,6 +8,7 @@ export type FontSize = 'small' | 'medium' | 'large'
 // UI 状态 store
 interface UIState {
     selectedFeedId: string | null
+    selectedFolderId: string | null
     selectedArticleId: string | null
     filterMode: 'all' | 'unread' | 'starred'
     sortOrder: 'newest' | 'oldest'
@@ -16,6 +17,7 @@ interface UIState {
     sidebarCollapsed: boolean
 
     setSelectedFeed: (feedId: string | null) => void
+    setSelectedFolder: (folderId: string | null) => void
     setSelectedArticle: (articleId: string | null) => void
     setFilterMode: (mode: 'all' | 'unread' | 'starred') => void
     setSortOrder: (order: 'newest' | 'oldest') => void
@@ -28,6 +30,7 @@ export const useUIStore = create<UIState>()(
     persist(
         (set) => ({
             selectedFeedId: null,
+            selectedFolderId: null,
             selectedArticleId: null,
             filterMode: 'all',
             sortOrder: 'newest',
@@ -35,7 +38,8 @@ export const useUIStore = create<UIState>()(
             sidebarOpen: false,
             sidebarCollapsed: false,
 
-            setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedArticleId: null }),
+            setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedFolderId: null, selectedArticleId: null }),
+            setSelectedFolder: (folderId) => set({ selectedFolderId: folderId, selectedFeedId: null, selectedArticleId: null }),
             setSelectedArticle: (articleId) => set({ selectedArticleId: articleId }),
             setFilterMode: (mode) => set({ filterMode: mode }),
             setSortOrder: (order) => set({ sortOrder: order }),

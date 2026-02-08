@@ -22,6 +22,8 @@ export function ArticleReader() {
   const { feeds } = useFeeds()
   const selectedArticleId = useUIStore((s) => s.selectedArticleId)
   const setSelectedArticle = useUIStore((s) => s.setSelectedArticle)
+  const setSelectedFeed = useUIStore((s) => s.setSelectedFeed)
+  const setFilterMode = useUIStore((s) => s.setFilterMode)
   const fontSize = useUIStore((s) => s.fontSize)
   const setFontSize = useUIStore((s) => s.setFontSize)
 
@@ -248,7 +250,18 @@ export function ArticleReader() {
           {article.author && feedName && (
             <span style={{ color: 'var(--color-text-tertiary)' }}>·</span>
           )}
-          {feedName && <span>{feedName}</span>}
+          {feedName && (
+            <button
+              onClick={() => {
+                setFilterMode('all')
+                setSelectedFeed(article.feedId)
+              }}
+              className="cursor-pointer transition-colors"
+              style={{ color: 'var(--color-accent)' }}
+            >
+              {feedName}
+            </button>
+          )}
           {(article.author || feedName) && article.pubDate && (
             <span style={{ color: 'var(--color-text-tertiary)' }}>·</span>
           )}
@@ -300,7 +313,7 @@ export function ArticleReader() {
 
             {displaySummary && (
               <div
-                className="prose max-w-none leading-relaxed dark:prose-invert"
+                className="article-content leading-relaxed"
                 style={{
                   color: 'var(--color-text-primary)',
                   fontSize: fontSize === 'small' ? '0.875rem' : fontSize === 'medium' ? '1rem' : '1.125rem',
