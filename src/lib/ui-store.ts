@@ -15,6 +15,7 @@ interface UIState {
     fontSize: FontSize
     sidebarOpen: boolean
     sidebarCollapsed: boolean
+    searchQuery: string
 
     setSelectedFeed: (feedId: string | null) => void
     setSelectedFolder: (folderId: string | null) => void
@@ -24,6 +25,7 @@ interface UIState {
     setFontSize: (size: FontSize) => void
     setSidebarOpen: (open: boolean) => void
     toggleSidebarCollapsed: () => void
+    setSearchQuery: (query: string) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -37,6 +39,7 @@ export const useUIStore = create<UIState>()(
             fontSize: 'medium',
             sidebarOpen: false,
             sidebarCollapsed: false,
+            searchQuery: '',
 
             setSelectedFeed: (feedId) => set({ selectedFeedId: feedId, selectedFolderId: null, selectedArticleId: null }),
             setSelectedFolder: (folderId) => set({ selectedFolderId: folderId, selectedFeedId: null, selectedArticleId: null }),
@@ -46,6 +49,7 @@ export const useUIStore = create<UIState>()(
             setFontSize: (size) => set({ fontSize: size }),
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
             toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+            setSearchQuery: (query) => set({ searchQuery: query }),
         }),
         {
             name: 'readly-ui-settings',

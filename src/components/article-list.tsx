@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
-import { Rss, FileText, Star, ArrowUpDown, Menu } from 'lucide-react'
+import { Rss, FileText, Star, ArrowUpDown, Menu, Search, X } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
@@ -32,6 +32,10 @@ export function ArticleList() {
   const setSelectedArticle = useUIStore((s) => s.setSelectedArticle)
   const setSortOrder = useUIStore((s) => s.setSortOrder)
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen)
+  const searchQuery = useUIStore((s) => s.searchQuery)
+  const setSearchQuery = useUIStore((s) => s.setSearchQuery)
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const [unreadFilter, setUnreadFilter] = useLocalUnreadFilter()
 
@@ -53,6 +57,8 @@ export function ArticleList() {
     return map
   }, [feeds])
 
+  const isSearching = searchQuery.trim().length > 0
+
   const headerTitle = useMemo(() => {
     if (filterMode === 'starred') return 'Starred'
     if (selectedFeed) return selectedFeed.title
@@ -73,8 +79,19 @@ export function ArticleList() {
 
   const articles = useMemo(() => {
     let items: FeedItemDisplay[] = []
+    const query = searchQuery.trim().toLowerCase()
 
-    if (filterMode === 'starred') {
+    if (query) {
+      // Search mode: search across ALL feeds, ignoring current selection
+      items = feeds.flatMap((f) =>
+        (f.items ?? []).map((i) => ({ ...i, feedId: f.id, imageUrl: i.imageUrl ?? undefined }))
+      )
+      items = items.filter((i) => {
+        const titleMatch = i.title.toLowerCase().includes(query)
+        const feedMatch = feedNameMap.get(i.feedId)?.toLowerCase().includes(query) ?? false
+        return titleMatch || feedMatch
+      })
+    } else if (filterMode === 'starred') {
       items = feeds.flatMap((f) =>
         (f.items ?? [])
           .filter((i) => i.isStarred)
@@ -96,7 +113,7 @@ export function ArticleList() {
       )
     }
 
-    if (unreadFilter && filterMode !== 'starred') {
+    if (unreadFilter && filterMode !== 'starred' && !query) {
       items = items.filter((i) => !i.isRead)
     }
 
@@ -113,9 +130,9 @@ export function ArticleList() {
     })
 
     return items
-  }, [feeds, selectedFeedId, selectedFeed, selectedFolderId, folderFeeds, filterMode, sortOrder, unreadFilter])
+  }, [feeds, selectedFeedId, selectedFeed, selectedFolderId, folderFeeds, filterMode, sortOrder, unreadFilter, searchQuery, feedNameMap])
 
-  const showFeedName = filterMode === 'starred' || (!selectedFeedId && !!selectedFolderId) || !selectedFeedId
+  const showFeedName = isSearching || filterMode === 'starred' || (!selectedFeedId && !!selectedFolderId) || !selectedFeedId
 
   const handleArticleClick = useCallback(
     async (article: FeedItemDisplay) => {
@@ -156,6 +173,18 @@ export function ArticleList() {
     []
   )
 
+  // Ctrl+K / ⌘+K to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
+
   // Virtual list setup
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -167,9 +196,16 @@ export function ArticleList() {
   const virtualizer = useVirtualizer({
     count: articles.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 84,
-    overscan: 10,
+    estimateSize: () => 120,
+    overscan: 5,
+    getItemKey: (index) => articles[index]?.id ?? String(index),
   })
+
+  // Force remeasure when articles change (sort/filter/feed switch)
+  // so stale cached heights don't cause overlap
+  useEffect(() => {
+    virtualizer.measure()
+  }, [articles, virtualizer])
 
   if (isLoading) {
     return (
@@ -232,9 +268,9 @@ export function ArticleList() {
               className="truncate text-lg font-bold leading-tight"
               style={{ color: 'var(--color-text-primary)' }}
             >
-              {headerTitle}
+              {isSearching ? `Search Results (${articles.length})` : headerTitle}
             </h2>
-            {headerDescription && (
+            {!isSearching && headerDescription && (
               <p
                 className="mt-0.5 truncate text-xs"
                 style={{ color: 'var(--color-text-tertiary)' }}
@@ -243,6 +279,41 @@ export function ArticleList() {
               </p>
             )}
           </div>
+        </div>
+
+        {/* Search input */}
+        <div className="relative mt-2">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--color-text-tertiary)' }}
+          />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search articles... (Ctrl+K)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border py-1.5 pl-8 pr-8 text-xs outline-none transition-colors focus:ring-1"
+            style={{
+              backgroundColor: 'var(--color-bg-tertiary)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-primary)',
+              // @ts-expect-error CSS custom property for ring color
+              '--tw-ring-color': 'var(--color-accent)',
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Controls row */}

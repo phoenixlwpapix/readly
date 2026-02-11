@@ -49,9 +49,15 @@ function generateId(): string {
 }
 
 function extractText(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value && typeof value === 'object' && '#text' in (value as Record<string, unknown>)) {
-    return String((value as Record<string, unknown>)['#text'])
+  if (typeof value === 'string') return value.trim()
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if ('__cdata' in obj && typeof obj.__cdata === 'string') {
+      return obj.__cdata.trim()
+    }
+    if ('#text' in obj && typeof obj['#text'] !== 'undefined') {
+      return String(obj['#text']).trim()
+    }
   }
   return ''
 }
