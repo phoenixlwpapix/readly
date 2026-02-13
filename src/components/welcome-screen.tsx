@@ -6,11 +6,8 @@ import {
   FolderOpen,
   Star,
   Upload,
-  Sun,
-  Moon,
   Keyboard,
 } from 'lucide-react'
-import { useTheme } from 'next-themes'
 
 const features = [
   {
@@ -46,9 +43,6 @@ const features = [
 ]
 
 export function WelcomeScreen() {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
-
   return (
     <div className="flex h-full flex-col items-center overflow-y-auto">
       <div className="w-full max-w-xl px-6 py-12 lg:py-16">
@@ -56,15 +50,7 @@ export function WelcomeScreen() {
         <div className="mb-12 text-center">
           {/* Logo mark */}
           <div
-            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
-            style={{
-              background: isDark
-                ? 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)'
-                : 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-              boxShadow: isDark
-                ? '0 8px 32px rgba(99, 102, 241, 0.3)'
-                : '0 8px 32px rgba(79, 70, 229, 0.25)',
-            }}
+            className="welcome-logo mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
           >
             <Rss size={28} color="#fff" strokeWidth={2.5} />
           </div>
@@ -153,21 +139,6 @@ export function WelcomeScreen() {
           ))}
         </div>
 
-        {/* Theme hint */}
-        <div className="mt-10 flex items-center justify-center gap-2">
-          {isDark ? (
-            <Moon size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-          ) : (
-            <Sun size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-          )}
-          <p
-            className="text-xs"
-            style={{ color: 'var(--color-text-tertiary)' }}
-          >
-            {isDark ? 'Dark' : 'Light'} mode active — switch anytime from the
-            sidebar
-          </p>
-        </div>
       </div>
     </div>
   )

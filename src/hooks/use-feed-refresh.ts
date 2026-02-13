@@ -21,26 +21,18 @@ export function useFeedRefresh() {
         setIsRefreshing(true)
 
         try {
-            // Refresh feeds in parallel with a concurrency limit
-            const CONCURRENCY = 3
-            const chunks: DbFeed[][] = []
-            for (let i = 0; i < feedsToRefresh.length; i += CONCURRENCY) {
-                chunks.push(feedsToRefresh.slice(i, i + CONCURRENCY))
-            }
-
-            for (const chunk of chunks) {
-                await Promise.allSettled(
-                    chunk.map(async (feed) => {
-                        try {
-                            const freshFeed = await refreshFeed(feed.url)
-                            if (freshFeed.items && freshFeed.items.length > 0) {
-                                await feedActions.updateFeedItems(feed.id, freshFeed.items)
-                            }
-                        } catch (error) {
-                            console.error(`Failed to refresh feed "${feed.title}":`, error)
-                        }
-                    })
-                )
+            // Refresh feeds sequentially with delay to avoid 429 rate limits
+            for (const feed of feedsToRefresh) {
+                try {
+                    const freshFeed = await refreshFeed(feed.url)
+                    if (freshFeed.items && freshFeed.items.length > 0) {
+                        await feedActions.updateFeedItems(feed.id, freshFeed.items)
+                    }
+                } catch (error) {
+                    console.error(`Failed to refresh feed "${feed.title}":`, error)
+                }
+                // Brief pause between requests
+                await new Promise((r) => setTimeout(r, 500))
             }
 
             setLastRefreshTime(Date.now())

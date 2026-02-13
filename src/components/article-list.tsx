@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
-import { Rss, FileText, Star, ArrowUpDown, Menu, Search, X } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef, memo } from 'react'
+import { Rss, FileText, ArrowUpDown, Menu, Search, X } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
@@ -165,14 +165,6 @@ export function ArticleList() {
     }
   }, [selectedFeedId, selectedFolderId, filterMode, articles, setSelectedArticle])
 
-  const handleStarClick = useCallback(
-    async (e: React.MouseEvent, articleId: string, isStarred: boolean) => {
-      e.stopPropagation()
-      await itemActions.toggleStar(articleId, isStarred)
-    },
-    []
-  )
-
   // Ctrl+K / ⌘+K to focus search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -193,19 +185,30 @@ export function ArticleList() {
     scrollRef.current?.scrollTo({ top: 0 })
   }, [selectedFeedId, selectedFolderId, filterMode])
 
+  // Track article list identity to force virtualizer reset
+  const articlesKey = useMemo(
+    () => articles.map((a) => a.id).join(','),
+    [articles]
+  )
+  const prevArticlesKey = useRef(articlesKey)
+
   const virtualizer = useVirtualizer({
     count: articles.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 120,
+    estimateSize: () => 110,
     overscan: 5,
     getItemKey: (index) => articles[index]?.id ?? String(index),
   })
 
   // Force remeasure when articles change (sort/filter/feed switch)
-  // so stale cached heights don't cause overlap
-  useEffect(() => {
-    virtualizer.measure()
-  }, [articles, virtualizer])
+  // useLayoutEffect ensures measurement happens before paint to prevent flicker
+  useLayoutEffect(() => {
+    if (prevArticlesKey.current !== articlesKey) {
+      prevArticlesKey.current = articlesKey
+      // Reset all measurements when the list changes
+      virtualizer.measure()
+    }
+  }, [articlesKey, virtualizer])
 
   if (isLoading) {
     return (
@@ -416,7 +419,6 @@ export function ArticleList() {
                     showFeedName={showFeedName}
                     feedName={feedNameMap.get(article.feedId)}
                     onSelect={handleArticleClick}
-                    onStarClick={handleStarClick}
                   />
                 </div>
               )
@@ -460,19 +462,17 @@ const ArticleCard = memo(function ArticleCard({
   showFeedName,
   feedName,
   onSelect,
-  onStarClick,
 }: {
   article: FeedItemDisplay
   isSelected: boolean
   showFeedName: boolean
   feedName: string | undefined
   onSelect: (article: FeedItemDisplay) => void
-  onStarClick: (e: React.MouseEvent, articleId: string, isStarred: boolean) => void
 }) {
   return (
     <div
       onClick={() => onSelect(article)}
-      className="group relative flex cursor-pointer gap-3 border-b px-4 py-3 transition-colors"
+      className="flex cursor-pointer gap-3 border-b px-4 py-2.5 transition-colors"
       style={{
         borderColor: 'var(--color-border)',
         backgroundColor: isSelected
@@ -489,7 +489,7 @@ const ArticleCard = memo(function ArticleCard({
       }}
     >
       {/* Unread dot */}
-      <div className="mt-2 shrink-0">
+      <div className="flex shrink-0 items-start pt-1.5">
         <div
           className="h-2 w-2 rounded-full"
           style={{
@@ -521,7 +521,7 @@ const ArticleCard = memo(function ArticleCard({
               <span>·</span>
             </>
           )}
-          <span>{formatRelativeDate(article.pubDate)}</span>
+          <span className="shrink-0">{formatRelativeDate(article.pubDate)}</span>
         </div>
 
         {article.contentSnippet && (
@@ -544,23 +544,6 @@ const ArticleCard = memo(function ArticleCard({
           />
         </div>
       )}
-
-      {/* Star button */}
-      <button
-        onClick={(e) => onStarClick(e, article.id, article.isStarred)}
-        className="absolute right-2 top-2 rounded p-1 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
-        style={{
-          opacity: article.isStarred ? 1 : undefined,
-          color: article.isStarred
-            ? 'var(--color-star)'
-            : 'var(--color-text-tertiary)',
-        }}
-      >
-        <Star
-          size={14}
-          fill={article.isStarred ? 'var(--color-star)' : 'none'}
-        />
-      </button>
     </div>
   )
 })

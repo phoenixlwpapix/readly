@@ -207,6 +207,17 @@ body {
   font-size: 0.9375rem;
 }
 
+/* Welcome screen logo */
+.welcome-logo {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  box-shadow: 0 8px 32px rgba(79, 70, 229, 0.25);
+}
+
+.dark .welcome-logo {
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+}
+
 /* Mobile article content polish */
 @media (max-width: 640px) {
   .article-content pre {

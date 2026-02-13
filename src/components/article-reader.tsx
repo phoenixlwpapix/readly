@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 import {
   ArrowLeft,
   Star,
@@ -51,19 +51,50 @@ export function ArticleReader() {
   // Use saved summary from DB, or newly generated one
   const displaySummary = article?.summary || newSummary
 
-  // Process article content to add referrerPolicy to images
-  // This fixes images blocked by external servers checking Referer header
+  // Process article content to fix media blocked by Referer checks
   const processedContent = useMemo(() => {
     if (!article?.content) return ''
-    return article.content.replace(
-      /<img\s+([^>]*?)\/?>/gi,
-      (match, attributes) => {
-        // Skip if already has referrerpolicy
-        if (/referrerpolicy/i.test(attributes)) return match
-        return `<img ${attributes} referrerpolicy="no-referrer" />`
-      }
-    )
+    return article.content
+      // Add referrerpolicy to <img>
+      .replace(/<img\s+([^>]*?)\/?>/gi, (match, attrs) => {
+        if (/referrerpolicy/i.test(attrs)) return match
+        return `<img ${attrs} referrerpolicy="no-referrer" />`
+      })
+      // Add referrerpolicy to <video>
+      .replace(/<video\s+([^>]*?)(\/?>)/gi, (match, attrs, close) => {
+        if (/referrerpolicy/i.test(attrs)) return match
+        return `<video ${attrs} referrerpolicy="no-referrer"${close}`
+      })
+      // Add referrerpolicy to <source> inside <video>
+      .replace(/<source\s+([^>]*?)\/?>/gi, (match, attrs) => {
+        if (/referrerpolicy/i.test(attrs)) return match
+        return `<source ${attrs} referrerpolicy="no-referrer" />`
+      })
+      // Add referrerpolicy to <iframe> (YouTube, Vimeo, etc.)
+      .replace(/<iframe\s+([^>]*?)>/gi, (match, attrs) => {
+        if (/referrerpolicy/i.test(attrs)) return match
+        return `<iframe ${attrs} referrerpolicy="no-referrer">`
+      })
   }, [article?.content])
+
+  // Hide images that fail to load (403, 404, etc.) and remove their src to stop retries
+  const contentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+
+    const handler = (e: Event) => {
+      const img = e.target as HTMLImageElement
+      if (img.tagName === 'IMG') {
+        img.removeAttribute('src')
+        img.removeAttribute('srcset')
+        img.style.display = 'none'
+      }
+    }
+
+    el.addEventListener('error', handler, true)
+    return () => el.removeEventListener('error', handler, true)
+  }, [processedContent])
 
   // Save summary to DB when generation completes
   const handleSummarize = async () => {
@@ -217,6 +248,7 @@ export function ArticleReader() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+       <div className="mx-auto max-w-2xl">
         {/* Article header */}
         <h1
           className="text-2xl font-bold leading-tight"
@@ -303,6 +335,12 @@ export function ArticleReader() {
                 }}
               >
                 <ReactMarkdown>{displaySummary}</ReactMarkdown>
+                {isSummarizing && (
+                  <span
+                    className="ml-0.5 inline-block h-4 w-0.5 animate-pulse align-middle"
+                    style={{ backgroundColor: 'var(--color-accent)' }}
+                  />
+                )}
               </div>
             )}
 
@@ -333,6 +371,7 @@ export function ArticleReader() {
 
         {/* Article body */}
         <div
+          ref={contentRef}
           className={`article-content article-content--${fontSize}`}
           style={{
             color: 'var(--color-text-primary)',
@@ -363,6 +402,7 @@ export function ArticleReader() {
             Read Original Article
           </button>
         </div>
+       </div>
       </div>
     </div>
   )
