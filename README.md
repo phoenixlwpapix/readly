@@ -19,6 +19,8 @@ A modern RSS reader built with Next.js and InstantDB.
 
 AI summarization has been removed. Existing subscriptions, reading history, and starred articles are preserved; legacy local AI summaries are cleared when the updated app loads.
 
+RSS metadata wrapped in CDATA is normalized to text before import. On first load, older local caches are repaired automatically, preserving subscriptions, folders, reading history, and favorites; no storage reset is needed.
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router, Turbopack)
@@ -102,6 +104,7 @@ pnpm dev          # Start development server (Turbopack)
 pnpm build        # Production build + type checking
 pnpm start        # Start production server
 pnpm lint         # Run ESLint
+pnpm test         # RSS metadata and local cache migration regression tests
 ```
 
 ## License

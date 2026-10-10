@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { generateId } from '@/lib/utils'
+import { readXMLText } from '@/lib/xml-text'
 import type { Feed, FeedItem, Folder } from '@/lib/types'
 
 export interface StoredFeed {
@@ -315,18 +316,33 @@ export const useFeedStore = create<FeedStoreState>()(
     }),
     {
       name: 'readly-feeds-storage',
-      version: 1,
-      // Remove legacy AI data while keeping subscriptions, history, and favorites.
+      version: 2,
+      // Repair cached XML nodes and remove legacy AI data without losing user data.
       migrate: (persistedState) => {
         const data = persistedState as Partial<PersistedData>
         return {
-          feeds: data.feeds ?? [],
+          feeds: (data.feeds ?? []).map((feed) => ({
+            ...feed,
+            title: readXMLText(feed.title) || 'Unknown Feed',
+            link: readXMLText(feed.link),
+            description: readXMLText(feed.description),
+            imageUrl: readXMLText(feed.imageUrl) || null,
+          })),
           folders: data.folders ?? [],
           readLinks: data.readLinks ?? [],
           starredItems: (data.starredItems ?? []).map((item) => {
             const cleaned = { ...item } as FeedItem & { summary?: string }
             delete cleaned.summary
-            return cleaned
+            return {
+              ...cleaned,
+              title: readXMLText(cleaned.title) || 'Untitled',
+              link: readXMLText(cleaned.link),
+              content: readXMLText(cleaned.content),
+              contentSnippet: readXMLText(cleaned.contentSnippet),
+              author: readXMLText(cleaned.author),
+              pubDate: readXMLText(cleaned.pubDate),
+              imageUrl: readXMLText(cleaned.imageUrl) || undefined,
+            }
           }),
         }
       },

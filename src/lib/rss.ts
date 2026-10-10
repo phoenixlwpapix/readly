@@ -1,22 +1,23 @@
 import type { Feed, FeedItem } from './types'
 import { decodeHtmlEntities } from './utils'
+import { readXMLText, type XMLText } from './xml-text'
 
 interface RSSChannel {
-  title?: string
-  link?: string
-  description?: string
-  image?: { url?: string }
+  title?: XMLText
+  link?: XMLText
+  description?: XMLText
+  image?: { url?: XMLText }
   item?: RSSItem | RSSItem[]
 }
 
 interface RSSItem {
-  title?: string
-  link?: string
-  description?: string
-  'content:encoded'?: string
-  author?: string
-  'dc:creator'?: string
-  pubDate?: string
+  title?: XMLText
+  link?: XMLText
+  description?: XMLText
+  'content:encoded'?: XMLText
+  author?: XMLText
+  'dc:creator'?: XMLText
+  pubDate?: XMLText
   guid?: string | { '#text': string }
   enclosure?: { '@_url'?: string; '@_type'?: string }
   'media:content'?: { '@_url'?: string }
@@ -24,43 +25,29 @@ interface RSSItem {
 }
 
 interface AtomEntry {
-  title?: string | { '#text': string }
+  title?: XMLText
   link?: { '@_href'?: string } | Array<{ '@_href'?: string; '@_rel'?: string }>
-  summary?: string | { '#text': string }
-  content?: string | { '#text': string }
-  author?: { name?: string }
-  updated?: string
-  published?: string
+  summary?: XMLText
+  content?: XMLText
+  author?: { name?: XMLText }
+  updated?: XMLText
+  published?: XMLText
   id?: string
   'media:content'?: { '@_url'?: string }
   'media:thumbnail'?: { '@_url'?: string }
 }
 
 interface AtomFeed {
-  title?: string | { '#text': string }
+  title?: XMLText
   link?: { '@_href'?: string } | Array<{ '@_href'?: string; '@_rel'?: string }>
-  subtitle?: string | { '#text': string }
-  icon?: string
-  logo?: string
+  subtitle?: XMLText
+  icon?: XMLText
+  logo?: XMLText
   entry?: AtomEntry | AtomEntry[]
 }
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
-}
-
-function extractText(value: unknown): string {
-  if (typeof value === 'string') return value.trim()
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    if ('__cdata' in obj && typeof obj.__cdata === 'string') {
-      return obj.__cdata.trim()
-    }
-    if ('#text' in obj && typeof obj['#text'] !== 'undefined') {
-      return String(obj['#text']).trim()
-    }
-  }
-  return ''
 }
 
 function resolveUrl(relative: string | undefined, base: string): string | undefined {
@@ -96,27 +83,9 @@ function extractImageUrl(item: RSSItem | AtomEntry, baseUrl: string): string | u
   const mediaThumbnail = (item as Record<string, unknown>)['media:thumbnail'] as { '@_url'?: string } | undefined
   if (mediaThumbnail?.['@_url']) return resolveUrl(mediaThumbnail['@_url'], baseUrl)
 
-  // Extract content for image search, handle CDATA format
-  let contentStr = ''
-  if ('content:encoded' in item) {
-    const encoded = (item as RSSItem)['content:encoded']
-    if (typeof encoded === 'string') {
-      contentStr = encoded
-    } else if (encoded && typeof encoded === 'object' && '__cdata' in (encoded as Record<string, unknown>)) {
-      contentStr = String((encoded as Record<string, unknown>).__cdata)
-    }
-  }
-  if (!contentStr && 'description' in item) {
-    const desc = (item as RSSItem).description
-    if (typeof desc === 'string') {
-      contentStr = desc
-    } else if (desc && typeof desc === 'object' && '__cdata' in (desc as Record<string, unknown>)) {
-      contentStr = String((desc as Record<string, unknown>).__cdata)
-    }
-  }
-  if (!contentStr) {
-    contentStr = extractText((item as AtomEntry).content)
-  }
+  const contentStr = readXMLText((item as RSSItem)['content:encoded'])
+    || readXMLText((item as RSSItem).description)
+    || readXMLText((item as AtomEntry).content)
   if (contentStr) {
     const imgMatch = contentStr.match(/<img[^>]+src=["']([^"']+)["']/)
     if (imgMatch) return resolveUrl(imgMatch[1], baseUrl)
@@ -140,39 +109,22 @@ function getAtomLink(link: AtomFeed['link'] | AtomEntry['link']): string {
   return link['@_href'] ?? ''
 }
 
-function extractCData(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-    // Handle CDATA wrapped content: { __cdata: 'content' }
-    if ('__cdata' in obj && typeof obj.__cdata === 'string') {
-      return obj.__cdata
-    }
-    // Handle #text
-    if ('#text' in obj && typeof obj['#text'] === 'string') {
-      return obj['#text']
-    }
-  }
-  return ''
-}
-
 function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedItem[] {
   return items.map((item) => {
     // Handle CDATA wrapped content
-    const rawContentEncoded = extractCData(item['content:encoded'])
-    const rawDescription = extractCData(item.description)
+    const rawContentEncoded = readXMLText(item['content:encoded'])
+    const rawDescription = readXMLText(item.description)
     const rawContent = rawContentEncoded || rawDescription
     const content = rawContent ? resolveContentUrls(rawContent, baseUrl) : ''
-    const guidText = typeof item.guid === 'object' ? item.guid?.['#text'] : item.guid
     return {
       id: generateId(),
       feedId,
-      title: decodeHtmlEntities(extractCData(item.title)) || 'Untitled',
-      link: typeof item.link === 'string' ? item.link : '',
+      title: decodeHtmlEntities(readXMLText(item.title)) || 'Untitled',
+      link: readXMLText(item.link),
       content,
       contentSnippet: stripHtml(content).slice(0, 200),
-      author: extractCData(item.author) || extractCData(item['dc:creator']) || '',
-      pubDate: extractCData(item.pubDate) || '',
+      author: readXMLText(item.author) || readXMLText(item['dc:creator']) || '',
+      pubDate: readXMLText(item.pubDate) || '',
       imageUrl: extractImageUrl(item, baseUrl),
       isRead: false,
       isStarred: false,
@@ -182,17 +134,17 @@ function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedI
 
 function parseAtomEntries(entries: AtomEntry[], feedId: string, baseUrl: string): FeedItem[] {
   return entries.map((entry) => {
-    const rawContent = extractText(entry.content) || extractText(entry.summary)
+    const rawContent = readXMLText(entry.content) || readXMLText(entry.summary)
     const content = typeof rawContent === 'string' ? resolveContentUrls(rawContent, baseUrl) : ''
     return {
       id: generateId(),
       feedId,
-      title: decodeHtmlEntities(extractText(entry.title)) || 'Untitled',
+      title: decodeHtmlEntities(readXMLText(entry.title)) || 'Untitled',
       link: getAtomLink(entry.link as AtomEntry['link']),
       content,
       contentSnippet: stripHtml(content).slice(0, 200),
-      author: entry.author?.name ?? '',
-      pubDate: entry.updated ?? entry.published ?? '',
+      author: readXMLText(entry.author?.name),
+      pubDate: readXMLText(entry.updated) || readXMLText(entry.published),
       imageUrl: extractImageUrl(entry, baseUrl),
       isRead: false,
       isStarred: false,
@@ -226,7 +178,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
   // RSS 2.0
   if (parsed.rss?.channel) {
     const channel: RSSChannel = parsed.rss.channel
-    const baseUrl = channel.link || url
+    const baseUrl = readXMLText(channel.link) || url
     const rawItems = channel.item
       ? Array.isArray(channel.item)
         ? channel.item
@@ -235,11 +187,11 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
 
     return {
       id: feedId,
-      title: channel.title ?? 'Unknown Feed',
+      title: decodeHtmlEntities(readXMLText(channel.title)) || 'Unknown Feed',
       url,
-      link: channel.link ?? '',
-      description: channel.description ?? '',
-      imageUrl: resolveUrl(channel.image?.url, baseUrl),
+      link: readXMLText(channel.link),
+      description: readXMLText(channel.description),
+      imageUrl: resolveUrl(readXMLText(channel.image?.url), baseUrl),
       folderId: null,
       lastFetched: new Date().toISOString(),
       items: parseRSSItems(rawItems, feedId, baseUrl),
@@ -258,11 +210,11 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
 
     return {
       id: feedId,
-      title: extractText(atomFeed.title) || 'Unknown Feed',
+      title: decodeHtmlEntities(readXMLText(atomFeed.title)) || 'Unknown Feed',
       url,
       link: getAtomLink(atomFeed.link),
-      description: extractText(atomFeed.subtitle) || '',
-      imageUrl: resolveUrl(atomFeed.icon ?? atomFeed.logo, baseUrl),
+      description: readXMLText(atomFeed.subtitle) || '',
+      imageUrl: resolveUrl(readXMLText(atomFeed.icon) || readXMLText(atomFeed.logo), baseUrl),
       folderId: null,
       lastFetched: new Date().toISOString(),
       items: parseAtomEntries(rawEntries, feedId, baseUrl),
@@ -272,8 +224,8 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
   // RDF / RSS 1.0
   if (parsed['rdf:RDF']) {
     const rdf = parsed['rdf:RDF']
-    const channel = rdf.channel ?? {}
-    const baseUrl = channel.link || url
+    const channel: RSSChannel = rdf.channel ?? {}
+    const baseUrl = readXMLText(channel.link) || url
     const rawItems = rdf.item
       ? Array.isArray(rdf.item)
         ? rdf.item
@@ -282,10 +234,10 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
 
     return {
       id: feedId,
-      title: channel.title ?? 'Unknown Feed',
+      title: decodeHtmlEntities(readXMLText(channel.title)) || 'Unknown Feed',
       url,
-      link: channel.link ?? '',
-      description: channel.description ?? '',
+      link: readXMLText(channel.link),
+      description: readXMLText(channel.description),
       imageUrl: undefined,
       folderId: null,
       lastFetched: new Date().toISOString(),
