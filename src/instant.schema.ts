@@ -29,7 +29,6 @@ const _schema = i.schema({
             imageUrl: i.string().optional(),
             isRead: i.boolean().indexed(),
             isStarred: i.boolean().indexed(),
-            summary: i.string().optional(),
             createdAt: i.number().indexed(),
         }),
     },
@@ -46,7 +45,7 @@ const _schema = i.schema({
 })
 
 type _AppSchema = typeof _schema
-interface AppSchema extends _AppSchema { }
+type AppSchema = _AppSchema
 const schema: AppSchema = _schema
 
 export type { AppSchema }

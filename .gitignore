@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local feed collections
+/readly-ai-feeds.opml
+/readly-fulltext-feeds.opml

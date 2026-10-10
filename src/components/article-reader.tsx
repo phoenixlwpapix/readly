@@ -7,15 +7,11 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  Sparkles,
-  RotateCcw,
   Type,
 } from 'lucide-react'
-import { useUIStore, type FontSize } from '@/lib/ui-store'
+import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
-import { useAiSummary } from '@/hooks/use-ai-summary'
 import { formatRelativeDate } from '@/lib/utils'
-import ReactMarkdown from 'react-markdown'
 import { WelcomeScreen } from '@/components/welcome-screen'
 
 export function ArticleReader() {
@@ -27,34 +23,17 @@ export function ArticleReader() {
   const fontSize = useUIStore((s) => s.fontSize)
   const setFontSize = useUIStore((s) => s.setFontSize)
 
-  const { summary: newSummary, isLoading: isSummarizing, error: summaryError, summarize, stop, reset } = useAiSummary()
-
-  // Reset AI summary when switching articles
-  useEffect(() => {
-    reset()
-  }, [selectedArticleId, reset])
-
-  const article = useMemo(() => {
-    for (const feed of feeds) {
-      const item = feed.items?.find((i) => i.id === selectedArticleId)
-      if (item) return { ...item, feedId: feed.id }
-    }
-    return null
-  }, [feeds, selectedArticleId])
-
-  const feedName = useMemo(() => {
-    if (!article) return ''
-    const feed = feeds.find((f) => f.id === article.feedId)
-    return feed?.title ?? ''
-  }, [feeds, article])
-
-  // Use saved summary from DB, or newly generated one
-  const displaySummary = article?.summary || newSummary
+  const selectedFeed = feeds.find((feed) =>
+    feed.items.some((item) => item.id === selectedArticleId)
+  )
+  const article = selectedFeed?.items.find((item) => item.id === selectedArticleId) ?? null
+  const feedName = selectedFeed?.title ?? ''
+  const articleContent = article?.content ?? ''
 
   // Process article content to fix media blocked by Referer checks
   const processedContent = useMemo(() => {
-    if (!article?.content) return ''
-    return article.content
+    if (!articleContent) return ''
+    return articleContent
       // Add referrerpolicy to <img>
       .replace(/<img\s+([^>]*?)\/?>/gi, (match, attrs) => {
         if (/referrerpolicy/i.test(attrs)) return match
@@ -75,7 +54,7 @@ export function ArticleReader() {
         if (/referrerpolicy/i.test(attrs)) return match
         return `<iframe ${attrs} referrerpolicy="no-referrer">`
       })
-  }, [article?.content])
+  }, [articleContent])
 
   // Hide images that fail to load (403, 404, etc.) and remove their src to stop retries
   const contentRef = useRef<HTMLDivElement>(null)
@@ -95,19 +74,6 @@ export function ArticleReader() {
     el.addEventListener('error', handler, true)
     return () => el.removeEventListener('error', handler, true)
   }, [processedContent])
-
-  // Save summary to DB when generation completes
-  const handleSummarize = async () => {
-    if (!article) return
-    if (isSummarizing) {
-      stop()
-    } else {
-      const result = await summarize(article.title, article.content)
-      if (result && article.id) {
-        await itemActions.saveSummary(article.id, result)
-      }
-    }
-  }
 
   const handleToggleStar = async () => {
     if (article) {
@@ -216,34 +182,6 @@ export function ArticleReader() {
           ))}
         </div>
 
-        <div className="flex-1" />
-
-        <button
-          onClick={handleSummarize}
-          disabled={!!article.summary && !isSummarizing}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-          style={{
-            backgroundColor: isSummarizing
-              ? 'var(--color-bg-tertiary)'
-              : 'var(--color-accent-light)',
-            color: 'var(--color-accent)',
-          }}
-          onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor =
-            isSummarizing
-              ? 'var(--color-bg-hover)'
-              : 'var(--color-accent-light)')
-          }
-          onMouseLeave={(e) =>
-          (e.currentTarget.style.backgroundColor =
-            isSummarizing
-              ? 'var(--color-bg-tertiary)'
-              : 'var(--color-accent-light)')
-          }
-        >
-          <Sparkles size={14} />
-          {isSummarizing ? 'Stop' : article.summary ? 'Summarized' : 'Summarize'}
-        </button>
       </div>
 
       {/* Content */}
@@ -291,83 +229,6 @@ export function ArticleReader() {
           className="my-4 h-px"
           style={{ backgroundColor: 'var(--color-border)' }}
         />
-
-        {/* AI Summary section */}
-        {(displaySummary || isSummarizing || summaryError) && (
-          <div
-            className="mb-6 rounded-xl p-4"
-            style={{ backgroundColor: 'var(--color-accent-light)' }}
-          >
-            <div
-              className="mb-2 flex items-center gap-1.5 text-sm font-semibold"
-              style={{ color: 'var(--color-accent)' }}
-            >
-              <Sparkles size={14} />
-              AI Summary
-              {article.summary && !isSummarizing && (
-                <span className="ml-auto text-xs font-normal opacity-60">Saved</span>
-              )}
-            </div>
-
-            {isSummarizing && !newSummary && (
-              <div className="space-y-2">
-                <div
-                  className="h-3 w-full animate-pulse rounded"
-                  style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
-                />
-                <div
-                  className="h-3 w-4/5 animate-pulse rounded"
-                  style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
-                />
-                <div
-                  className="h-3 w-3/5 animate-pulse rounded"
-                  style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
-                />
-              </div>
-            )}
-
-            {displaySummary && (
-              <div
-                className="article-content leading-relaxed"
-                style={{
-                  color: 'var(--color-text-primary)',
-                  fontSize: fontSize === 'small' ? '0.875rem' : fontSize === 'medium' ? '1rem' : '1.125rem',
-                }}
-              >
-                <ReactMarkdown>{displaySummary}</ReactMarkdown>
-                {isSummarizing && (
-                  <span
-                    className="ml-0.5 inline-block h-4 w-0.5 animate-pulse align-middle"
-                    style={{ backgroundColor: 'var(--color-accent)' }}
-                  />
-                )}
-              </div>
-            )}
-
-            {summaryError && (
-              <div className="flex items-center gap-2 text-sm">
-                <span style={{ color: 'var(--color-danger)' }}>
-                  Failed to generate summary
-                </span>
-                <button
-                  onClick={() => summarize(article.title, article.content)}
-                  className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium transition-colors"
-                  style={{ color: 'var(--color-accent)' }}
-                  onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    'var(--color-bg-tertiary)')
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = 'transparent')
-                  }
-                >
-                  <RotateCcw size={12} />
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Article body */}
         <div

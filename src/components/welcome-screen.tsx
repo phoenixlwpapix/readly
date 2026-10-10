@@ -2,7 +2,6 @@
 
 import {
   Rss,
-  Sparkles,
   FolderOpen,
   Star,
   Upload,
@@ -14,11 +13,6 @@ const features = [
     icon: Rss,
     title: 'Multi-Format Feeds',
     desc: 'RSS 2.0, Atom, and RDF formats — all supported out of the box.',
-  },
-  {
-    icon: Sparkles,
-    title: 'AI Summaries',
-    desc: 'Get instant article summaries powered by Gemini AI.',
   },
   {
     icon: FolderOpen,
@@ -66,7 +60,7 @@ export function WelcomeScreen() {
             className="mx-auto mt-3 max-w-sm text-base leading-relaxed"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            A clean, distraction-free RSS reader with AI-powered summaries.
+            A clean, distraction-free RSS reader.
             All your feeds in one place.
           </p>
         </div>

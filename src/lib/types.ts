@@ -22,7 +22,6 @@ export interface FeedItem {
   imageUrl?: string
   isRead: boolean
   isStarred: boolean
-  summary?: string
 }
 
 export interface Folder {

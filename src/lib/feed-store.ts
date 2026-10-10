@@ -42,7 +42,6 @@ interface PersistedData {
   folders: StoredFolder[]
   readLinks: string[] // Capped at 5000 URLs
   starredItems: FeedItem[] // Explicitly starred articles only
-  summaries: Record<string, string> // itemId -> AI summary
 }
 
 interface FeedStoreState extends PersistedData {
@@ -67,18 +66,16 @@ interface FeedStoreState extends PersistedData {
   markAsRead: (itemId: string) => void
   markAsUnread: (itemId: string) => void
   toggleStar: (itemId: string, isStarred: boolean) => void
-  saveSummary: (itemId: string, summary: string) => void
   batchImport: (feeds: StoredFeed[], folders: StoredFolder[]) => void
 }
 
 export const useFeedStore = create<FeedStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       feeds: [],
       folders: [],
       readLinks: [],
       starredItems: [],
-      summaries: {},
       transientItems: {},
       hasHydrated: false,
 
@@ -310,11 +307,6 @@ export const useFeedStore = create<FeedStoreState>()(
           }
         }),
 
-      saveSummary: (itemId, summary) =>
-        set((state) => ({
-          summaries: { ...state.summaries, [itemId]: summary },
-        })),
-
       batchImport: (newFeeds, newFolders) =>
         set((state) => ({
           feeds: [...state.feeds, ...newFeeds],
@@ -323,13 +315,27 @@ export const useFeedStore = create<FeedStoreState>()(
     }),
     {
       name: 'readly-feeds-storage',
+      version: 1,
+      // Remove legacy AI data while keeping subscriptions, history, and favorites.
+      migrate: (persistedState) => {
+        const data = persistedState as Partial<PersistedData>
+        return {
+          feeds: data.feeds ?? [],
+          folders: data.folders ?? [],
+          readLinks: data.readLinks ?? [],
+          starredItems: (data.starredItems ?? []).map((item) => {
+            const cleaned = { ...item } as FeedItem & { summary?: string }
+            delete cleaned.summary
+            return cleaned
+          }),
+        }
+      },
       // Persist only metadata, read history, and starred items. Transient articles stay in memory!
       partialize: (state) => ({
         feeds: state.feeds,
         folders: state.folders,
         readLinks: state.readLinks,
         starredItems: state.starredItems,
-        summaries: state.summaries,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
@@ -385,7 +391,6 @@ export function useFeeds() {
   const transientItems = useFeedStore((s) => s.transientItems)
   const readLinks = useFeedStore((s) => s.readLinks)
   const starredItems = useFeedStore((s) => s.starredItems)
-  const summaries = useFeedStore((s) => s.summaries)
   const hasHydrated = useFeedStore((s) => s.hasHydrated)
 
   const composedFeeds: FeedWithDetails[] = useMemo(() => {
@@ -407,7 +412,6 @@ export function useFeeds() {
         feedId: feed.id,
         isRead: readSet.has(item.link),
         isStarred: starredLinkSet.has(item.link),
-        summary: summaries[item.id] ?? item.summary,
       }))
 
       return {
@@ -416,7 +420,7 @@ export function useFeeds() {
         items,
       }
     })
-  }, [feeds, folders, transientItems, readLinks, starredItems, summaries])
+  }, [feeds, folders, transientItems, readLinks, starredItems])
 
   return { feeds: composedFeeds, isLoading: !hasHydrated, error: null }
 }
@@ -507,8 +511,5 @@ export const itemActions = {
   },
   async toggleStar(itemId: string, isStarred: boolean) {
     useFeedStore.getState().toggleStar(itemId, isStarred)
-  },
-  async saveSummary(itemId: string, summary: string) {
-    useFeedStore.getState().saveSummary(itemId, summary)
   },
 }
