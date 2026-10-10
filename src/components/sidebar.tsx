@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTheme } from 'next-themes'
 import {
   Rss,
@@ -79,22 +79,43 @@ export function Sidebar() {
   const [showAddFeed, setShowAddFeed] = useState(false)
   const [showImportOPML, setShowImportOPML] = useState(false)
 
-  const allArticlesCount = feeds.reduce((sum, f) => sum + (f.items?.length ?? 0), 0)
-  const starredCount = feeds.reduce(
-    (sum, f) => sum + (f.items?.filter((i) => i.isStarred).length ?? 0),
-    0
-  )
+  const { allArticlesCount, starredCount, unreadCountMap } = useMemo(() => {
+    let all = 0
+    let starred = 0
+    const unreadMap = new Map<string, number>()
 
-  const uncategorizedFeeds = feeds.filter((f) => !f.folder)
-  const favoriteFeeds = feeds.filter((f) => f.isFavorite)
+    for (const feed of feeds) {
+      const items = feed.items ?? []
+      all += items.length
+      let unread = 0
+      for (const item of items) {
+        if (item.isStarred) starred++
+        if (!item.isRead) unread++
+      }
+      unreadMap.set(feed.id, unread)
+    }
 
-  const getFeedsInFolder = (folderId: string) =>
-    feeds.filter((f) => f.folder?.id === folderId)
+    return { allArticlesCount: all, starredCount: starred, unreadCountMap: unreadMap }
+  }, [feeds])
 
-  const getUnreadCount = (feedId: string) => {
-    const feed = feeds.find((f) => f.id === feedId)
-    return feed?.items?.filter((i) => !i.isRead).length ?? 0
-  }
+  const uncategorizedFeeds = useMemo(() => feeds.filter((f) => !f.folder), [feeds])
+  const favoriteFeeds = useMemo(() => feeds.filter((f) => f.isFavorite), [feeds])
+
+  const folderFeedsMap = useMemo(() => {
+    const map = new Map<string, typeof feeds>()
+    for (const feed of feeds) {
+      if (feed.folder?.id) {
+        const list = map.get(feed.folder.id) ?? []
+        list.push(feed)
+        map.set(feed.folder.id, list)
+      }
+    }
+    return map
+  }, [feeds])
+
+  const getFeedsInFolder = (folderId: string) => folderFeedsMap.get(folderId) ?? []
+
+  const getUnreadCount = (feedId: string) => unreadCountMap.get(feedId) ?? 0
 
   const handleRemoveFeed = async (feedId: string) => {
     await feedActions.removeFeed(feedId)

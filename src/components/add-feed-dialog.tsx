@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Rss, X, Loader2 } from 'lucide-react'
-import { id } from '@instantdb/react'
+import { generateId } from '@/lib/utils'
 import { fetchFeed } from '@/app/actions'
 import { useFolders, feedActions, folderActions, getExistingFeedUrls } from '@/lib/feed-store'
 
@@ -52,7 +52,7 @@ export function AddFeedDialog({ open, onClose }: AddFeedDialogProps) {
 
       let folderId: string | null = null
       if (folderOption === 'new' && newFolderName.trim()) {
-        const newId = id()
+        const newId = generateId()
         await folderActions.addFolder({ id: newId, name: newFolderName.trim(), isExpanded: true })
         folderId = newId
       } else if (folderOption !== 'none') {

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { FileUp, Upload, X, Loader2, AlertCircle, Check } from 'lucide-react'
-import { id } from '@instantdb/react'
+import { generateId } from '@/lib/utils'
 import { fetchFeed, parseOPMLAction } from '@/app/actions'
 import { useFolders, useFeeds, feedActions, folderActions } from '@/lib/feed-store'
 import type { OPMLOutline } from '@/lib/types'
@@ -157,7 +157,7 @@ export function ImportOPMLDialog({ open, onClose }: ImportOPMLDialogProps) {
           if (existingId) {
             folderId = existingId
           } else {
-            const newId = id()
+            const newId = generateId()
             await folderActions.addFolder({ id: newId, name: outline.folder, isExpanded: true })
             folderMap.set(outline.folder.toLowerCase(), newId)
             folderId = newId

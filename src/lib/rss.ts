@@ -1,4 +1,5 @@
 import type { Feed, FeedItem } from './types'
+import { decodeHtmlEntities } from './utils'
 
 interface RSSChannel {
   title?: string
@@ -125,7 +126,9 @@ function extractImageUrl(item: RSSItem | AtomEntry, baseUrl: string): string | u
 
 function stripHtml(html: unknown): string {
   if (typeof html !== 'string') return ''
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+  return decodeHtmlEntities(
+    html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+  )
 }
 
 function getAtomLink(link: AtomFeed['link'] | AtomEntry['link']): string {
@@ -164,7 +167,7 @@ function parseRSSItems(items: RSSItem[], feedId: string, baseUrl: string): FeedI
     return {
       id: generateId(),
       feedId,
-      title: extractCData(item.title) || 'Untitled',
+      title: decodeHtmlEntities(extractCData(item.title)) || 'Untitled',
       link: typeof item.link === 'string' ? item.link : '',
       content,
       contentSnippet: stripHtml(content).slice(0, 200),
@@ -184,7 +187,7 @@ function parseAtomEntries(entries: AtomEntry[], feedId: string, baseUrl: string)
     return {
       id: generateId(),
       feedId,
-      title: extractText(entry.title) || 'Untitled',
+      title: decodeHtmlEntities(extractText(entry.title)) || 'Untitled',
       link: getAtomLink(entry.link as AtomEntry['link']),
       content,
       contentSnippet: stripHtml(content).slice(0, 200),
@@ -202,6 +205,7 @@ export async function fetchAndParseFeed(url: string): Promise<Feed> {
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Readly RSS Reader/1.0' },
+    signal: AbortSignal.timeout(8000),
     next: { revalidate: 0 },
   })
 

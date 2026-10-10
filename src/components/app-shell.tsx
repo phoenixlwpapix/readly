@@ -38,7 +38,7 @@ export function AppShell({ sidebar, articleList, articleReader }: AppShellProps)
 
       {/* Article list — hidden on mobile when an article is selected */}
       <section
-        className={`w-full shrink-0 overflow-y-auto border-r lg:w-[360px] ${selectedArticleId ? 'hidden lg:block' : 'block'
+        className={`w-full shrink-0 overflow-hidden border-r lg:w-[360px] ${selectedArticleId ? 'hidden lg:block' : 'block'
           }`}
         style={{
           backgroundColor: 'var(--color-bg-primary)',

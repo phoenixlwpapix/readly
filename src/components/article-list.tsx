@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef, memo } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react'
 import { Rss, FileText, ArrowUpDown, Menu, Search, X } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useUIStore } from '@/lib/ui-store'
 import { useFeeds, itemActions } from '@/lib/feed-store'
-import { formatRelativeDate, cn } from '@/lib/utils'
+import { formatRelativeDate, cn, decodeHtmlEntities } from '@/lib/utils'
 
 interface FeedItemDisplay {
   id: string
@@ -19,6 +19,17 @@ interface FeedItemDisplay {
   imageUrl?: string | null
   isRead: boolean
   isStarred: boolean
+}
+
+const pubDateTsCache = new Map<string, number>()
+function getPubDateTs(pubDate: string): number {
+  let ts = pubDateTsCache.get(pubDate)
+  if (ts === undefined) {
+    ts = new Date(pubDate).getTime() || 0
+    if (pubDateTsCache.size > 5000) pubDateTsCache.clear()
+    pubDateTsCache.set(pubDate, ts)
+  }
+  return ts
 }
 
 export function ArticleList() {
@@ -117,15 +128,9 @@ export function ArticleList() {
       items = items.filter((i) => !i.isRead)
     }
 
-    // Pre-compute timestamps to avoid repeated Date parsing in sort comparator
-    const tsMap = new Map<string, number>()
-    for (const item of items) {
-      tsMap.set(item.id, new Date(item.pubDate).getTime() || 0)
-    }
-
     items.sort((a, b) => {
-      const tsA = tsMap.get(a.id)!
-      const tsB = tsMap.get(b.id)!
+      const tsA = getPubDateTs(a.pubDate)
+      const tsB = getPubDateTs(b.pubDate)
       return sortOrder === 'newest' ? tsB - tsA : tsA - tsB
     })
 
@@ -180,18 +185,6 @@ export function ArticleList() {
   // Virtual list setup
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Reset scroll position when feed/folder/filter changes
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 })
-  }, [selectedFeedId, selectedFolderId, filterMode])
-
-  // Track article list identity to force virtualizer reset
-  const articlesKey = useMemo(
-    () => articles.map((a) => a.id).join(','),
-    [articles]
-  )
-  const prevArticlesKey = useRef(articlesKey)
-
   const virtualizer = useVirtualizer({
     count: articles.length,
     getScrollElement: () => scrollRef.current,
@@ -200,15 +193,10 @@ export function ArticleList() {
     getItemKey: (index) => articles[index]?.id ?? String(index),
   })
 
-  // Force remeasure when articles change (sort/filter/feed switch)
-  // useLayoutEffect ensures measurement happens before paint to prevent flicker
-  useLayoutEffect(() => {
-    if (prevArticlesKey.current !== articlesKey) {
-      prevArticlesKey.current = articlesKey
-      // Reset all measurements when the list changes
-      virtualizer.measure()
-    }
-  }, [articlesKey, virtualizer])
+  // Reset scroll position when feed/folder/filter changes
+  useEffect(() => {
+    virtualizer.scrollToOffset(0)
+  }, [selectedFeedId, selectedFolderId, filterMode, virtualizer])
 
   if (isLoading) {
     return (
@@ -400,9 +388,10 @@ export function ArticleList() {
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const article = articles[virtualRow.index]
+              if (!article) return null
               return (
                 <div
-                  key={article.id}
+                  key={virtualRow.key}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
                   style={{
@@ -509,7 +498,7 @@ const ArticleCard = memo(function ArticleCard({
           )}
           style={{ color: 'var(--color-text-primary)' }}
         >
-          {article.title}
+          {decodeHtmlEntities(article.title)}
         </p>
 
         <div className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -529,7 +518,7 @@ const ArticleCard = memo(function ArticleCard({
             className="mt-1 line-clamp-2 text-xs leading-relaxed"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            {article.contentSnippet}
+            {decodeHtmlEntities(article.contentSnippet)}
           </p>
         )}
       </div>

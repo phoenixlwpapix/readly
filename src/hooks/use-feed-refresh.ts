@@ -14,6 +14,8 @@ export function useFeedRefresh() {
     const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null)
     const [isRefreshing, setIsRefreshing] = useState(false)
 
+const CONCURRENCY_LIMIT = 4
+
     const refreshAllFeeds = useCallback(async (feedsToRefresh: DbFeed[]) => {
         if (isRefreshingRef.current || feedsToRefresh.length === 0) return
 
@@ -21,19 +23,27 @@ export function useFeedRefresh() {
         setIsRefreshing(true)
 
         try {
-            // Refresh feeds sequentially with delay to avoid 429 rate limits
-            for (const feed of feedsToRefresh) {
-                try {
-                    const freshFeed = await refreshFeed(feed.url)
-                    if (freshFeed.items && freshFeed.items.length > 0) {
-                        await feedActions.updateFeedItems(feed.id, freshFeed.items)
+            // Process feeds in parallel using a controlled concurrency pool
+            let currentIndex = 0
+            const worker = async () => {
+                while (currentIndex < feedsToRefresh.length) {
+                    const index = currentIndex++
+                    const feed = feedsToRefresh[index]
+                    if (!feed) break
+                    try {
+                        const freshFeed = await refreshFeed(feed.url)
+                        if (freshFeed.items && freshFeed.items.length > 0) {
+                            await feedActions.updateFeedItems(feed.id, freshFeed.items)
+                        }
+                    } catch (error) {
+                        console.error(`Failed to refresh feed "${feed.title}":`, error)
                     }
-                } catch (error) {
-                    console.error(`Failed to refresh feed "${feed.title}":`, error)
                 }
-                // Brief pause between requests
-                await new Promise((r) => setTimeout(r, 500))
             }
+
+            const workerCount = Math.min(CONCURRENCY_LIMIT, feedsToRefresh.length)
+            const workers = Array.from({ length: workerCount }, () => worker())
+            await Promise.all(workers)
 
             setLastRefreshTime(Date.now())
         } finally {
